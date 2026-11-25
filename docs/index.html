@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#121418" />
+  <meta name="description" content="3dich — Ultra-optimized 3D Printer Modding, SolidCraft CAD Import, Real-Time Kinematics Physics & Gemini AI 3D Render Studio." />
+  <title>3dich — 3D Printer Engineering &amp; AI Customizer</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- Top Precision Command Bar -->
+  <header class="topbar" role="banner">
+    <div class="topbar-left">
+      <div class="brand">
+        <img src="./favicon.svg" alt="" class="brand-icon" width="24" height="24" />
+        <h1 class="brand-title">3dich</h1>
+        <span class="brand-badge">STUDIO</span>
+      </div>
+
+      <label for="quick-printer-select" class="sr-only">Base 3D Printer</label>
+      <select id="quick-printer-select" class="top-select" aria-label="Base 3D Printer"></select>
+
+      <div class="pill-group cam-group" role="group" aria-label="Camera Presets">
+        <button type="button" class="pill-btn" data-cam="iso" data-i18n="camIso" title="Key 1">İzo</button>
+        <button type="button" class="pill-btn" data-cam="front" data-i18n="camFront" title="Key 2">Ön</button>
+        <button type="button" class="pill-btn" data-cam="side" data-i18n="camSide" title="Key 3">Yan</button>
+        <button type="button" class="pill-btn" data-cam="top" data-i18n="camTop" title="Key 4">Üst</button>
+        <button type="button" class="pill-btn" data-cam="toolhead" data-i18n="camToolhead" title="Key 5">Başlık</button>
+      </div>
+    </div>
+
+    <div class="topbar-center">
+      <div class="pill-group mode-group" role="group" aria-label="Viewport Simulation Modes">
+        <button type="button" id="btn-toggle-motion" class="pill-btn" aria-pressed="false" title="Space">
+          <span class="dot dot-accent" aria-hidden="true"></span>
+          <span data-i18n="toggleMotion">Hareket</span>
+        </button>
+        <button type="button" id="btn-toggle-airflow" class="pill-btn" aria-pressed="false">
+          <span class="dot dot-cyan" aria-hidden="true"></span>
+          <span data-i18n="toggleAirflow">Hava Akışı</span>
+        </button>
+        <button type="button" id="btn-toggle-thermal" class="pill-btn" aria-pressed="false">
+          <span class="dot dot-heat" aria-hidden="true"></span>
+          <span data-i18n="toggleThermal">Termal</span>
+        </button>
+        <button type="button" id="btn-toggle-hardpoints" class="pill-btn" aria-pressed="false">
+          <span class="dot dot-emerald" aria-hidden="true"></span>
+          <span data-i18n="toggleHardpoints">Montaj</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="topbar-right">
+      <div id="perf-hud" class="perf-hud" aria-live="off" title="Renderer Telemetry">
+        <span id="hud-backend">WebGL2</span>
+        <span class="sep">•</span>
+        <span id="hud-framems">0.0ms</span>
+        <span class="sep">•</span>
+        <span id="hud-dc">0 DC</span>
+        <span class="sep">•</span>
+        <span id="hud-idle" class="hud-idle">BOŞTA %0</span>
+      </div>
+
+      <div class="icon-actions">
+        <button type="button" id="btn-undo" class="icon-btn" aria-label="Undo" title="Ctrl+Z" disabled>↶</button>
+        <button type="button" id="btn-redo" class="icon-btn" aria-label="Redo" title="Ctrl+Y" disabled>↷</button>
+        <button type="button" id="btn-open-export" class="btn btn-primary btn-sm" data-i18n="btnExport">Dışa Aktar</button>
+        <button type="button" id="btn-lang" class="icon-btn mono" aria-label="Switch Language">TR</button>
+        <button type="button" id="btn-theme" class="icon-btn" aria-label="Toggle Theme" title="Theme">◐</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main 3-Pane Studio Workspace -->
+  <div class="workspace" id="workspace">
+    <!-- Left Dock: Catalog, Printers, SolidCraft CAD, Maker Ideas -->
+    <aside class="dock dock-left" id="dock-left" aria-label="Mod Catalog and SolidCraft CAD">
+      <div class="dock-tabs" role="tablist" aria-label="Left Dock Tabs">
+        <button type="button" class="dock-tab active" role="tab" aria-selected="true" aria-controls="panel-catalog" data-left-tab="catalog" data-i18n="tabCatalog">Katalog</button>
+        <button type="button" class="dock-tab" role="tab" aria-selected="false" aria-controls="panel-printers" data-left-tab="printers" data-i18n="tabPrinters">Yazıcılar</button>
+        <button type="button" class="dock-tab" role="tab" aria-selected="false" aria-controls="panel-solidcraft" data-left-tab="solidcraft" data-i18n="tabSolidCraft">SolidCraft</button>
+        <button type="button" class="dock-tab" role="tab" aria-selected="false" aria-controls="panel-ideas" data-left-tab="ideas" data-i18n="tabIdeas">Fikirler</button>
+      </div>
+
+      <!-- TAB 1: 59-Mod Engineering Catalog -->
+      <section id="panel-catalog" class="dock-panel active" role="tabpanel">
+        <div class="panel-sticky-head">
+          <div class="search-row">
+            <label for="mod-search" class="sr-only">Search Mods</label>
+            <input type="search" id="mod-search" class="input" placeholder="59 mod içinde ara..." autocomplete="off" />
+          </div>
+          <div class="catalog-meta-row">
+            <span class="meta-badge"><strong id="active-mod-count">0</strong> <span data-i18n="modsInstalled">Aktif Mod</span></span>
+            <button type="button" id="btn-clear-mods" class="btn-link" data-i18n="clearMods">Stok Sıfırla</button>
+          </div>
+          <div id="category-chips" class="chip-strip" role="group" aria-label="Mod Categories"></div>
+        </div>
+        <div id="mod-list" class="mod-list" tabindex="0"></div>
+      </section>
+
+      <!-- TAB 2: 7 Printers, 6 Curated Presets, Frame Finishes -->
+      <section id="panel-printers" class="dock-panel" role="tabpanel" hidden>
+        <div class="panel-scroll" tabindex="0">
+          <h2 class="section-heading" data-i18n="basePlatform">Baz 3D Yazıcı Platformu</h2>
+          <div id="printer-list" class="stack-list"></div>
+
+          <div id="custom-dims-card" class="card" hidden>
+            <h3 class="card-title" data-i18n="customDimensions">Özel Şasi Ölçüleri (mm)</h3>
+            <div class="grid-3">
+              <label class="field-mini"><span>X</span><input type="number" id="custom-vol-x" class="input mono" min="100" max="600" step="10" value="280" /></label>
+              <label class="field-mini"><span>Y</span><input type="number" id="custom-vol-y" class="input mono" min="100" max="600" step="10" value="280" /></label>
+              <label class="field-mini"><span>Z</span><input type="number" id="custom-vol-z" class="input mono" min="100" max="600" step="10" value="280" /></label>
+            </div>
+            <div class="field-row" style="margin-top:8px">
+              <label for="custom-kinematics" class="field-label">Kinematik</label>
+              <select id="custom-kinematics" class="input">
+                <option value="corexy">CoreXY (Cube Frame)</option>
+                <option value="bedslinger">Bed-Slinger (i3 Gantry)</option>
+              </select>
+            </div>
+          </div>
+
+          <h2 class="section-heading" data-i18n="curatedPresets">Tek Tık Mühendislik Paketleri</h2>
+          <div id="preset-list" class="stack-list"></div>
+
+          <h2 class="section-heading" data-i18n="appearanceTitle">Şasi Anodize &amp; Baskı Rengi</h2>
+          <div class="card">
+            <div class="swatch-label" data-i18n="frameColor">Şasi Rengi</div>
+            <div id="frame-swatches" class="swatch-row"></div>
+            <div class="swatch-label" style="margin-top:10px" data-i18n="accentColor">Vurgu Rengi</div>
+            <div id="accent-swatches" class="swatch-row"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: SolidCraft CAD Import & MCP Command Generator -->
+      <section id="panel-solidcraft" class="dock-panel" role="tabpanel" hidden>
+        <div class="panel-scroll" tabindex="0">
+          <div id="cad-dropzone" class="dropzone">
+            <div class="dropzone-icon" aria-hidden="true">⬡</div>
+            <div class="dropzone-title" data-i18n="dropZoneTitle">SolidCraft / CAD Dosyası Bırak veya Seç</div>
+            <div class="dropzone-sub" data-i18n="dropZoneSub">.STL, .OBJ, .3MF, .ZIP veya SolidCraft .SC arşivi • Off-thread Web Worker</div>
+            <button type="button" id="btn-choose-cad" class="btn btn-primary btn-sm" data-i18n="btnChooseFile">Dosya Seç</button>
+            <input type="file" id="cad-file-input" accept=".stl,.obj,.3mf,.zip,.sc,.solidcraft" multiple hidden />
+          </div>
+
+          <!-- SolidCraft .sc Inspector Card (hidden until .sc archive is dropped) -->
+          <div id="sc-archive-card" class="card card-highlight" hidden>
+            <div class="row-between">
+              <h3 class="card-title" data-i18n="scInspectorTitle">SolidCraft (.sc) Arşivi Algılandı</h3>
+              <button type="button" id="btn-close-sc-card" class="btn-link">✕</button>
+            </div>
+            <div id="sc-archive-body"></div>
+          </div>
+
+          <h2 class="section-heading" data-i18n="demoPartsTitle">Hazır Demo SolidCraft Parçaları (1 Tık)</h2>
+          <div id="demo-parts-list" class="demo-grid"></div>
+
+          <div id="local-lib-section" hidden>
+            <h2 class="section-heading" data-i18n="localLibTitle">Kasa SolidCraft Kütüphanesi</h2>
+            <div id="local-lib-list" class="stack-list"></div>
+          </div>
+
+          <h2 class="section-heading" data-i18n="mountedPartsTitle">Montajlı Özel Parçalar</h2>
+          <div id="mounted-parts-list" class="stack-list"></div>
+
+          <h2 class="section-heading" data-i18n="mcpGenTitle">SolidCraft MCP Çizim Komutu Üretici</h2>
+          <div class="card">
+            <label for="mcp-hp-select" class="field-label" data-i18n="mcpTargetHp">Hedef Montaj Noktası (Hardpoint)</label>
+            <select id="mcp-hp-select" class="input"></select>
+            <label for="mcp-brief" class="sr-only">Part Brief</label>
+            <textarea id="mcp-brief" class="input textarea" rows="2" placeholder="Parça tarifi..."></textarea>
+            <pre id="mcp-preview" class="code-box mono" tabindex="0"></pre>
+            <div class="btn-row">
+              <button type="button" id="btn-copy-mcp-prompt" class="btn btn-primary btn-sm" data-i18n="btnCopyPrompt">MCP Prompt Kopyala</button>
+              <button type="button" id="btn-copy-mcp-batch" class="btn btn-secondary btn-sm" data-i18n="btnCopyBatch">Export JSON Kopyala</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: 50+ Maker & Engineer Inspiration Blueprints -->
+      <section id="panel-ideas" class="dock-panel" role="tabpanel" hidden>
+        <div class="panel-scroll" tabindex="0">
+          <p class="hint-text" data-i18n="ideasIntro">Mühendis &amp; Maker atölyesinden hemen SolidCraft ile çizip test edebileceğin fikirler:</p>
+          <div id="ideas-list" class="stack-list"></div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Center 3D Viewport -->
+    <main class="viewport-wrap" id="viewport-wrap" role="main" aria-label="3D Printer Interactive Viewport">
+      <canvas id="viewport-canvas" aria-label="3D Printer Mod Preview Canvas"></canvas>
+
+      <!-- Collision / Safety Floating Banner -->
+      <div id="viewport-alert" class="viewport-alert" role="status" aria-live="polite" hidden></div>
+
+      <!-- Selected SolidCraft Part Floating Transform Gizmo Bar -->
+      <div id="gizmo-bar" class="gizmo-bar" role="toolbar" aria-label="3D Transform Gizmo" hidden>
+        <span id="gizmo-part-name" class="gizmo-part-label mono"></span>
+        <button type="button" class="pill-btn active" data-gizmo-mode="translate" data-i18n="gizmoTranslate">Taşı (G)</button>
+        <button type="button" class="pill-btn" data-gizmo-mode="rotate" data-i18n="gizmoRotate">Döndür (R)</button>
+        <button type="button" class="pill-btn" data-gizmo-mode="scale" data-i18n="gizmoScale">Ölçek (S)</button>
+        <button type="button" id="btn-gizmo-delete" class="pill-btn pill-danger" aria-label="Delete Selected Part">✕</button>
+      </div>
+
+      <!-- Subtle Bottom-Left Printer Watermark & Shortcut Hint -->
+      <div class="viewport-footer">
+        <span id="vp-printer-tag" class="mono">Voron 2.4 R2 (300)</span>
+        <span class="vp-hint">Orbit: Drag • Pan: Right/Shift • Zoom: Wheel • Sim: Space</span>
+      </div>
+
+      <!-- Drag-and-Drop Full Overlay -->
+      <div id="global-drop-overlay" class="drop-overlay" hidden>
+        <div class="drop-overlay-card">
+          <div class="dropzone-icon">⬡</div>
+          <div>.STL / .OBJ / .3MF / .ZIP / .SC</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Dock: Live Telemetry & Physics, Part Transform, Gemini AI & 3D Studio -->
+    <aside class="dock dock-right" id="dock-right" aria-label="Engineering Telemetry and Gemini AI Studio">
+      <div class="dock-tabs" role="tablist" aria-label="Right Dock Tabs">
+        <button type="button" class="dock-tab active" role="tab" aria-selected="true" aria-controls="panel-telemetry" data-right-tab="telemetry" data-i18n="tabTelemetry">Telemetri</button>
+        <button type="button" class="dock-tab" role="tab" aria-selected="false" aria-controls="panel-part" data-right-tab="part" data-i18n="tabPart">Parça</button>
+        <button type="button" class="dock-tab" role="tab" aria-selected="false" aria-controls="panel-gemini" data-right-tab="gemini" data-i18n="tabGemini">Gemini AI</button>
+      </div>
+
+      <!-- RIGHT TAB 1: Live Physics & Telemetry -->
+      <section id="panel-telemetry" class="dock-panel active" role="tabpanel">
+        <div class="panel-scroll" tabindex="0">
+          <!-- Hero Score + 3DBenchy Time Card -->
+          <div class="hero-card">
+            <div class="score-ring-wrap">
+              <svg class="score-ring" viewBox="0 0 80 80" aria-hidden="true">
+                <circle class="ring-bg" cx="40" cy="40" r="34" />
+                <circle id="score-ring-fg" class="ring-fg" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="42" />
+              </svg>
+              <div class="score-ring-text">
+                <strong id="kpi-score" class="mono">80</strong>
+                <span>/100</span>
+              </div>
+            </div>
+            <div class="hero-benchy">
+              <div class="hero-kicker" data-i18n="benchyLabel">Tahmini 3DBenchy</div>
+              <div class="hero-time-row">
+                <span id="kpi-benchy" class="hero-time mono">22m 10s</span>
+                <span id="kpi-benchy-delta" class="delta-pill mono">0%</span>
+              </div>
+              <div class="hero-sub mono"><span data-i18n="stockLabel">Stok</span>: <span id="kpi-benchy-stock">22m 10s</span> • <span id="kpi-shaper">MZV</span></div>
+            </div>
+          </div>
+
+          <!-- 6 Engineering KPI Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label" data-i18n="kpiSpeed">Etkili Hız</div>
+              <div id="kpi-speed" class="kpi-val mono">240 mm/s</div>
+              <div id="kpi-speed-delta" class="kpi-sub mono"></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" data-i18n="kpiAccel">Maks İvme</div>
+              <div id="kpi-accel" class="kpi-val mono">8,500</div>
+              <div id="kpi-accel-delta" class="kpi-sub mono">mm/s²</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" data-i18n="kpiFlow">Hacimsel Akış</div>
+              <div id="kpi-flow" class="kpi-val mono">22 mm³/s</div>
+              <div id="kpi-temp-sub" class="kpi-sub mono">300°C / 48°C</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" data-i18n="kpiMass">Hareketli Kütle</div>
+              <div id="kpi-mass" class="kpi-val mono">440g X</div>
+              <div id="kpi-mass-y" class="kpi-sub mono">760g Y</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" data-i18n="kpiNoise">Akustik Gürültü</div>
+              <div id="kpi-noise" class="kpi-val mono">54.0 dBA</div>
+              <div id="kpi-noise-delta" class="kpi-sub mono"></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label" data-i18n="kpiPowerCost">Güç / Maliyet</div>
+              <div id="kpi-cost" class="kpi-val mono">$1,150</div>
+              <div id="kpi-power" class="kpi-sub mono">240W / 350W</div>
+            </div>
+          </div>
+
+          <!-- Bottleneck Solver Bars -->
+          <div class="card">
+            <div class="row-between">
+              <h3 class="card-title" data-i18n="bottleneckTitle">Alt Sistem Darboğaz Analizi</h3>
+              <span id="bottleneck-badge" class="badge mono">BALANCED</span>
+            </div>
+            <div class="bar-list">
+              <div class="bar-item">
+                <div class="row-between"><span data-i18n="subHotend">Hotend Akış Limiti</span><strong id="bar-flow-val" class="mono">244 mm/s</strong></div>
+                <div class="bar-track"><div id="bar-flow-fill" class="bar-fill fill-orange"></div></div>
+              </div>
+              <div class="bar-item">
+                <div class="row-between"><span data-i18n="subCooling">Parça Soğutma Limiti</span><strong id="bar-cool-val" class="mono">210 mm/s</strong></div>
+                <div class="bar-track"><div id="bar-cool-fill" class="bar-fill fill-cyan"></div></div>
+              </div>
+              <div class="bar-item">
+                <div class="row-between"><span data-i18n="subMotion">Kinematik / İvme Limiti</span><strong id="bar-motion-val" class="mono">360 mm/s</strong></div>
+                <div class="bar-track"><div id="bar-motion-fill" class="bar-fill fill-emerald"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Input Shaper SVG Bode / PSD Resonance Spectrum -->
+          <div class="card">
+            <div class="row-between">
+              <h3 class="card-title" data-i18n="resonanceTitle">Input Shaper Rezonans Spektrumu</h3>
+              <span id="freq-badge" class="mono small-muted">X:54Hz Y:44Hz</span>
+            </div>
+            <svg id="resonance-svg" class="resonance-svg" viewBox="0 0 320 116" role="img" aria-label="Resonance Frequency Spectrum"></svg>
+          </div>
+
+          <!-- Filament Thermal Compatibility Matrix -->
+          <div class="card">
+            <h3 class="card-title" data-i18n="materialsTitle">Filament &amp; Termal Uyumluluk Matrisi</h3>
+            <div id="material-matrix" class="mat-grid"></div>
+          </div>
+
+          <!-- Collisions & Engineering Warnings -->
+          <div class="card">
+            <h3 class="card-title" data-i18n="warningsTitle">Çakışma &amp; Güvenlik Denetimi</h3>
+            <div id="warnings-list" class="warnings-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT TAB 2: Selected SolidCraft Part Inspector -->
+      <section id="panel-part" class="dock-panel" role="tabpanel" hidden>
+        <div class="panel-scroll" tabindex="0">
+          <div id="part-empty-state" class="empty-box">
+            <p data-i18n="partSelectHint">Düzenlemek için 3D sahnede bir SolidCraft parçasına tıkla veya soldan ekle.</p>
+          </div>
+
+          <div id="part-editor" hidden>
+            <div class="card">
+              <div class="row-between">
+                <h3 id="pe-name" class="card-title mono">Part.stl</h3>
+                <span id="pe-format" class="badge mono">STL</span>
+              </div>
+              <div id="pe-metrology" class="metrology-grid mono"></div>
+            </div>
+
+            <div class="card">
+              <label for="pe-zone" class="field-label" data-i18n="partZoneLabel">Kinematik Bağlantı Bölgesi</label>
+              <select id="pe-zone" class="input">
+                <option value="toolhead" data-i18n="zoneToolhead">Toolhead / X-Kızağı (Hareketli X+Y)</option>
+                <option value="bed" data-i18n="zoneBed">Baskı Tablası (Hareketli Y/Z)</option>
+                <option value="gantry" data-i18n="zoneGantry">Gantry Köprüsü</option>
+                <option value="frame" data-i18n="zoneFrame">Sabit Şasi (0 Atalet Kaybı)</option>
+                <option value="enclosure" data-i18n="zoneEnclosure">Kabin Duvarı / Tavan</option>
+              </select>
+
+              <label for="pe-snap-hp" class="field-label" style="margin-top:10px" data-i18n="partSnapLabel">Hızlı Montaj Noktasına Oturt</label>
+              <div class="row-gap">
+                <select id="pe-snap-hp" class="input"></select>
+                <button type="button" id="btn-snap-part" class="btn btn-primary btn-sm" data-i18n="btnSnapNow">Oturt</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <label for="pe-material" class="field-label" data-i18n="partMatLabel">Malzeme &amp; Doluluk</label>
+              <div class="row-gap">
+                <select id="pe-material" class="input"></select>
+                <input type="color" id="pe-color" class="color-input" aria-label="Part Color" value="#f06a28" />
+              </div>
+              <div class="slider-row">
+                <label for="pe-infill" class="small-muted">Infill</label>
+                <input type="range" id="pe-infill" min="10" max="100" step="5" value="35" />
+                <span id="pe-infill-val" class="mono small-muted">35%</span>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="field-label" data-i18n="partPosLabel">Konum (X, Y, Z mm)</div>
+              <div class="grid-3">
+                <label class="field-mini"><span>X</span><input type="number" id="pe-px" class="input mono" step="2" /></label>
+                <label class="field-mini"><span>Y</span><input type="number" id="pe-py" class="input mono" step="2" /></label>
+                <label class="field-mini"><span>Z</span><input type="number" id="pe-pz" class="input mono" step="2" /></label>
+              </div>
+              <div class="field-label" style="margin-top:10px" data-i18n="partRotLabel">Dönüş (X, Y, Z °)</div>
+              <div class="grid-3">
+                <label class="field-mini"><span>RX</span><input type="number" id="pe-rx" class="input mono" step="15" /></label>
+                <label class="field-mini"><span>RY</span><input type="number" id="pe-ry" class="input mono" step="15" /></label>
+                <label class="field-mini"><span>RZ</span><input type="number" id="pe-rz" class="input mono" step="15" /></label>
+              </div>
+              <div class="field-label" style="margin-top:10px" data-i18n="partScaleLabel">Ölçek (X, Y, Z)</div>
+              <div class="grid-3">
+                <label class="field-mini"><span>SX</span><input type="number" id="pe-sx" class="input mono" step="0.05" min="0.1" max="5" /></label>
+                <label class="field-mini"><span>SY</span><input type="number" id="pe-sy" class="input mono" step="0.05" min="0.1" max="5" /></label>
+                <label class="field-mini"><span>SZ</span><input type="number" id="pe-sz" class="input mono" step="0.05" min="0.1" max="5" /></label>
+              </div>
+              <div class="btn-row" style="margin-top:12px">
+                <button type="button" id="btn-mirror-part" class="btn btn-secondary btn-sm" data-i18n="btnMirrorX">X Aynala</button>
+                <button type="button" id="btn-dup-part" class="btn btn-secondary btn-sm" data-i18n="btnDuplicate">Çoğalt</button>
+                <button type="button" id="btn-del-part" class="btn btn-danger btn-sm" data-i18n="btnDeletePart">Parçayı Sil</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT TAB 3: Gemini AI Vision Evaluation + 3D Concept Image Studio + Engineer Chat -->
+      <section id="panel-gemini" class="dock-panel" role="tabpanel" hidden>
+        <div class="panel-scroll" tabindex="0">
+          <!-- Gemini API Config Card -->
+          <div class="card">
+            <label for="gemini-api-key" class="field-label" data-i18n="apiKeyLabel">Gemini API Anahtarı (Tarayıcıda Kalır)</label>
+            <div class="row-gap">
+              <input type="password" id="gemini-api-key" class="input mono" placeholder="AIzaSy..." autocomplete="off" />
+              <button type="button" id="btn-save-key" class="btn btn-primary btn-sm" data-i18n="btnSaveKey">Kaydet</button>
+              <button type="button" id="btn-clear-key" class="btn btn-secondary btn-sm" data-i18n="btnClearKey">Temizle</button>
+            </div>
+            <div class="grid-2" style="margin-top:8px">
+              <div>
+                <label for="gemini-text-model" class="field-label" data-i18n="textModelLabel">Analiz Modeli</label>
+                <select id="gemini-text-model" class="input"></select>
+              </div>
+              <div>
+                <label for="gemini-image-model" class="field-label" data-i18n="imageModelLabel">3D Görsel Modeli</label>
+                <select id="gemini-image-model" class="input"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section A: Multimodal Performance Audit -->
+          <div class="card">
+            <div class="btn-row">
+              <button type="button" id="btn-run-gemini-audit" class="btn btn-primary" data-i18n="btnRunAudit">Gemini ile Performansı Değerlendir</button>
+              <button type="button" id="btn-run-offline-audit" class="btn btn-secondary btn-sm" data-i18n="btnRunOffline">Çevrimdışı Denetim</button>
+            </div>
+            <div id="audit-status" class="small-muted" style="margin-top:6px" aria-live="polite"></div>
+            <div id="audit-output" class="ai-markdown" tabindex="0">
+              <p class="hint-text" data-i18n="auditEmpty">Yazıcını modla veya SolidCraft parçanı yerleştir, ardından Gemini’nin performans analizini başlat.</p>
+            </div>
+            <div id="audit-rec-mods" class="rec-mods-row"></div>
+          </div>
+
+          <!-- Section B: Gemini 3D Visual / Studio Render Generator -->
+          <div class="card">
+            <h3 class="card-title" data-i18n="renderTitle">Gemini 3D Görsel &amp; Konsept Stüdyosu</h3>
+            <label for="render-style-select" class="field-label" data-i18n="renderStyleLabel">Görsel Stili</label>
+            <select id="render-style-select" class="input"></select>
+            <label for="render-prompt" class="sr-only">Extra Render Prompt</label>
+            <textarea id="render-prompt" class="input textarea" rows="2" placeholder="Opsiyonel ek yönlendirme..."></textarea>
+            <button type="button" id="btn-gen-3d-image" class="btn btn-primary" style="width:100%;margin-top:8px" data-i18n="btnGenerate3D">3D Görsel Üret</button>
+            <div id="render-status" class="small-muted" style="margin-top:6px" aria-live="polite"></div>
+            <div id="render-latest" class="render-preview" hidden></div>
+            <div id="render-gallery-wrap" hidden>
+              <div class="field-label" style="margin-top:10px" data-i18n="galleryTitle">Üretilen 3D Görsel Galerisi</div>
+              <div id="render-gallery" class="gallery-grid"></div>
+            </div>
+          </div>
+
+          <!-- Section C: Interactive Engineer Co-Pilot Chat -->
+          <div class="card">
+            <h3 class="card-title" data-i18n="chatTitle">AI Mühendis Co-Pilot Sohbeti</h3>
+            <div id="chat-log" class="chat-log" tabindex="0"></div>
+            <form id="chat-form" class="row-gap" style="margin-top:8px">
+              <label for="chat-input" class="sr-only">Ask AI Engineer</label>
+              <input type="text" id="chat-input" class="input" placeholder="Örn: Bu SolidCraft braketini 30g hafifletmek için ne yapmalıyım?" />
+              <button type="submit" id="btn-send-chat" class="btn btn-primary btn-sm" data-i18n="btnSendChat">Gönder</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <!-- Mobile & Tablet Adaptive Bottom Navigation -->
+  <nav class="mobile-nav" aria-label="Mobile Navigation">
+    <button type="button" class="mnav-btn active" data-mobile-view="scene" data-i18n="navScene">3D Sahne</button>
+    <button type="button" class="mnav-btn" data-mobile-view="left" data-i18n="navCatalog">Katalog</button>
+    <button type="button" class="mnav-btn" data-mobile-view="telemetry" data-i18n="navStats">Telemetri</button>
+    <button type="button" class="mnav-btn" data-mobile-view="gemini" data-i18n="navAi">Gemini AI</button>
+  </nav>
+
+  <!-- Export & Klipper Config Modal -->
+  <div id="export-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="export-modal-title" hidden>
+    <div class="modal-sheet">
+      <div class="row-between modal-head">
+        <h2 id="export-modal-title" data-i18n="modalExportTitle">Dışa Aktar &amp; Klipper Yapılandırması</h2>
+        <button type="button" id="btn-close-export" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="export-actions-grid">
+        <button type="button" id="btn-dl-png" class="btn btn-secondary" data-i18n="btnDownloadPng">3D Ekran Görüntüsü (PNG)</button>
+        <button type="button" id="btn-dl-bom" class="btn btn-secondary" data-i18n="btnDownloadBom">BOM (CSV) İndir</button>
+        <button type="button" id="btn-dl-json" class="btn btn-secondary" data-i18n="btnDownloadJson">Projeyi Kaydet (JSON)</button>
+        <button type="button" id="btn-import-json" class="btn btn-secondary" data-i18n="btnImportJson">Proje Yükle (JSON)</button>
+        <button type="button" id="btn-dl-stl" class="btn btn-secondary" data-i18n="btnDownloadStl">Özel Parçaları STL İndir</button>
+        <input type="file" id="project-json-input" accept=".json" hidden />
+      </div>
+      <label for="klipper-preview" class="field-label" style="margin-top:14px">Klipper printer.cfg</label>
+      <textarea id="klipper-preview" class="code-box mono klipper-ta" readonly rows="12"></textarea>
+      <div class="btn-row" style="margin-top:10px;justify-content:flex-end">
+        <button type="button" id="btn-copy-klipper" class="btn btn-secondary" data-i18n="btnCopyKlipper">printer.cfg Kopyala</button>
+        <button type="button" id="btn-dl-klipper" class="btn btn-primary" data-i18n="btnDownloadKlipper">printer.cfg İndir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Render Lightbox -->
+  <div id="lightbox-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="3D Render Lightbox" hidden>
+    <div class="lightbox-card">
+      <button type="button" id="btn-close-lightbox" class="icon-btn lightbox-close" aria-label="Close Lightbox">✕</button>
+      <img id="lightbox-img" alt="Gemini 3D Render" />
+      <div class="row-between" style="margin-top:10px">
+        <span id="lightbox-caption" class="small-muted"></span>
+        <a id="lightbox-dl" class="btn btn-primary btn-sm" download="3dich-render.png">PNG İndir</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

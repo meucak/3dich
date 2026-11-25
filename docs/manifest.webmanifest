@@ -1,0 +1,17 @@
+{
+  "name": "3dich — 3D Printer Modding & AI Engineering Studio",
+  "short_name": "3dich",
+  "description": "Ultra-optimized 3D printer customizer with 59+ mods, SolidCraft CAD import, live kinematic physics, and Gemini Vision + 3D Image Studio.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#121418",
+  "theme_color": "#121418",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
