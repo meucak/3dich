@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import { PRINTER_PLATFORMS } from '../../docs/js/catalog.js';
+import { PRINTER_BY_ID } from '../../docs/js/catalog.js';
 import { evaluatePrinterBuild } from '../../docs/js/physics_engine.js';
 import {
+  GEMINI_TEXT_MODELS,
+  GEMINI_IMAGE_MODELS,
+  AGY_MODELS,
+  fetchLiveGeminiModels,
   buildEvaluationPayload,
   buildImageGenPayload,
   evaluateBuildWithGemini,
@@ -22,7 +26,7 @@ function test(name, fn) {
 async function run() {
   console.log('=== 3dich Gemini Studio & SolidCraft Bridge Unit Tests ===');
 
-  const printer = PRINTER_PLATFORMS[0];
+  const printer = PRINTER_BY_ID.get('voron_24_300');
   const mods = ['hotend-chc-pro', 'enc-polycarb-panels'];
   const customParts = [{
     id: 'p1', name: 'SolidCraft_Duct.stl', volumeCm3: 18, materialId: 'pla', infillPct: 40,
@@ -50,9 +54,14 @@ async function run() {
     assert.ok(payload.contents[0].parts[0].text.includes('Voron 2.4'));
   });
 
-  await test('Mocked Gemini API evaluation parses text + clickable [[mod:...]] recommendations', async () => {
+  await test('Mocked Gemini API evaluation uses latest Gemini 3.8/4 models and parses [[mod:...]] tags', async () => {
+    assert.ok(GEMINI_TEXT_MODELS.some((m) => m.id === 'gemini-3.8-flash'));
+    assert.ok(GEMINI_TEXT_MODELS.some((m) => m.id === 'gemini-4-carbon'));
+    assert.ok(GEMINI_IMAGE_MODELS.some((m) => m.id === 'gemini-3.1-flash-image'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-neon-high'));
+
     const mockFetch = async (url, init) => {
-      assert.ok(url.includes('gemini-2.5-flash:generateContent'));
+      assert.ok(url.includes('gemini-3.8-flash:generateContent'));
       assert.equal(init.headers['x-goog-api-key'], 'TEST_KEY_123');
       return {
         ok: true,
@@ -66,16 +75,46 @@ async function run() {
       };
     };
     const res = await evaluateBuildWithGemini({
-      apiKey: 'TEST_KEY_123', model: 'gemini-2.5-flash', lang: 'en',
+      apiKey: 'TEST_KEY_123', model: 'gemini-3.8-flash', lang: 'en',
       printer, activeModIds: mods, customParts, evalResult, snapshotDataUrl: fakePng, fetchFn: mockFetch,
     });
     assert.equal(res.source, 'gemini');
     assert.deepEqual(res.recommendedMods, ['hotend-rapido-uhf', 'cool-cpap-turbo']);
   });
 
-  await test('Mocked Gemini Image Gen extracts generated PNG data URL', async () => {
+  await test('Live ListModels discovery + AGY Kasa Zero-Trust Bearer request work cleanly', async () => {
+    const liveRes = await fetchLiveGeminiModels('KEY', async () => ({
+      ok: true,
+      json: async () => ({
+        models: [
+          { name: 'models/gemini-4-carbon', displayName: 'Gemini 4 Carbon', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/gemini-3.1-flash-image', displayName: 'Gemini 3.1 Flash Image', supportedGenerationMethods: ['generateContent'] },
+          { name: 'models/imagen-4.0-generate-001', displayName: 'Imagen 4', supportedGenerationMethods: ['predict'] },
+        ],
+      }),
+    }));
+    assert.equal(liveRes.textModels[0].id, 'gemini-4-carbon');
+    assert.equal(liveRes.imageModels.length, 2);
+
+    const agyRes = await evaluateBuildWithGemini({
+      provider: 'agy-kasa', agyToken: 'SECRET_256_TOKEN', agyModel: 'gemini-4-neon-high',
+      lang: 'tr', printer, activeModIds: mods, customParts, evalResult, snapshotDataUrl: fakePng,
+      fetchFn: async (url, init) => {
+        assert.ok(url.endsWith('/complete'));
+        assert.equal(init.headers['X-3dich-Token'], 'SECRET_256_TOKEN');
+        return {
+          ok: true,
+          json: async () => ({ ok: true, model: 'gemini-4-neon-high', text: 'AGY audit ok [[mod:probe-beacon-eddy]]' }),
+        };
+      },
+    });
+    assert.equal(agyRes.source, 'agy-kasa');
+    assert.deepEqual(agyRes.recommendedMods, ['probe-beacon-eddy']);
+  });
+
+  await test('Mocked Gemini 3.1 Image & Imagen 4 generation extract PNG data URL', async () => {
     const mockFetch = async (url) => {
-      assert.ok(url.includes('gemini-2.5-flash-image:generateContent'));
+      assert.ok(url.includes('gemini-3.1-flash-image:generateContent'));
       return {
         ok: true,
         json: async () => ({
@@ -91,7 +130,7 @@ async function run() {
       };
     };
     const res = await generate3DRenderWithGemini({
-      apiKey: 'TEST_KEY', imageModel: 'gemini-2.5-flash-image', styleId: 'studio',
+      apiKey: 'TEST_KEY', imageModel: 'gemini-3.1-flash-image', styleId: 'studio',
       printer, activeModIds: mods, customParts, snapshotDataUrl: fakePng, fetchFn: mockFetch,
     });
     assert.equal(res.imageDataUrl, 'data:image/png;base64,QUJDREVGRw==');

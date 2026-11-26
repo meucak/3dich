@@ -579,7 +579,7 @@ export function generateKlipperConfig(printer, activeModIds, evalResult) {
     `# ==============================================================================`,
     ``,
     `[printer]`,
-    `kinematics: ${printer.kinematics === 'corexy' ? 'corexy' : 'cartesian'}`,
+    `kinematics: ${printer.kinematics === 'corexy' ? 'corexy' : printer.kinematics === 'delta' ? 'delta' : 'cartesian'}`,
     `max_velocity: ${cur.maxTravelSpeedMmS}`,
     `max_accel: ${cur.maxAccelMmS2}`,
     `max_z_velocity: ${activeModIds.includes('mot-belted-z') ? 35 : 15}`,

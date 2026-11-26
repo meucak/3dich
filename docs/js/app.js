@@ -3,6 +3,9 @@
 import {
   PRINTER_PLATFORMS,
   PRINTER_BY_ID,
+  PRINTER_VENDORS,
+  MAIN_VENDOR_SET,
+  resolvePrinterId,
   MOD_CATALOG,
   MOD_BY_ID,
   MOD_CATEGORIES,
@@ -31,9 +34,13 @@ import { WebGLRenderer } from './renderer_webgl.js';
 import { Canvas2DRenderer } from './renderer_canvas2d.js';
 import { TransformGizmo } from './gizmo.js';
 import {
+  AI_PROVIDERS,
   GEMINI_TEXT_MODELS,
   GEMINI_IMAGE_MODELS,
+  AGY_MODELS,
   RENDER_STYLES,
+  fetchLiveGeminiModels,
+  testAgyBridge,
   evaluateBuildWithGemini,
   generate3DRenderWithGemini,
   chatWithEngineer,
@@ -106,7 +113,9 @@ class App3dich {
   constructor() {
     this.settings = loadSettings();
     this.state = {
-      printerId: 'voron-24',
+      printerId: 'voron_24_300',
+      printerVendor: 'ALL',
+      printerSearch: '',
       customDims: { x: 280, y: 280, z: 280, kinematics: 'corexy' },
       activeModIds: ['hotend-rapido-uhf', 'cool-stealthburner', 'probe-beacon-eddy', 'elec-canbus-ebb36', 'qol-rgb-neopixel'],
       frameFinishId: 'matte-black',
@@ -127,7 +136,7 @@ class App3dich {
     // Restore persisted build (non-mesh metadata) if available
     const saved = loadBuildSnapshot();
     if (saved && PRINTER_BY_ID.has(saved.printerId)) {
-      this.state.printerId = saved.printerId;
+      this.state.printerId = resolvePrinterId(saved.printerId);
       if (Array.isArray(saved.activeModIds)) {
         this.state.activeModIds = saved.activeModIds.filter((id) => MOD_BY_ID.has(id));
       }
@@ -189,6 +198,8 @@ class App3dich {
         ...this.renderer.stats,
         rafRunning: this.rafId !== null,
         printerId: this.state.printerId,
+        printerName: this.getActivePrinter().name,
+        printerCount: PRINTER_PLATFORMS.length,
         activeModCount: this.state.activeModIds.length,
         customPartCount: this.state.customParts.length,
         engineeringScore: this.evalResult?.current?.engineeringScore,
@@ -196,13 +207,14 @@ class App3dich {
       }),
       addDemoPart: (id) => this.addDemoSolidCraftPart(id),
       applyPreset: (id) => this.applyPreset(id),
+      setPrinter: (id) => this.setPrinter(id),
       captureSnapshot: () => this._captureViewportPng(),
     };
   }
 
   getActivePrinter() {
     const base = PRINTER_BY_ID.get(this.state.printerId) || PRINTER_PLATFORMS[0];
-    if (base.id !== 'custom-scratch') return base;
+    if (base.id !== 'custom_scratch' && base.id !== 'custom-scratch') return base;
     const d = this.state.customDims;
     const bx = Math.max(100, Math.min(600, Number(d.x) || 280));
     const by = Math.max(100, Math.min(600, Number(d.y) || 280));
@@ -443,9 +455,10 @@ class App3dich {
   }
 
   setPrinter(printerId) {
-    if (!PRINTER_BY_ID.has(printerId)) return;
+    const resolved = resolvePrinterId(printerId);
+    if (!PRINTER_BY_ID.has(resolved)) return;
     this._pushUndo();
-    this.state.printerId = printerId;
+    this.state.printerId = resolved;
     this._persistBuild();
     this.camera.framePrinter(this.getActivePrinter(), false);
     this._rebuildPrinterGeometry();
@@ -456,7 +469,7 @@ class App3dich {
     const p = BUILD_PRESETS.find((x) => x.id === presetId);
     if (!p) return;
     this._pushUndo();
-    this.state.printerId = p.printerId;
+    this.state.printerId = resolvePrinterId(p.printerId);
     this.state.activeModIds = [...p.mods];
     this.state.frameFinishId = p.frameFinish;
     this.state.accentColorId = p.accentColor;
@@ -794,16 +807,9 @@ class App3dich {
 
   // ==================== LEFT DOCK RENDERING ====================
   _populateStaticSelectors() {
-    // Quick printer selector
-    const qSel = $('quick-printer-select');
-    qSel.innerHTML = '';
-    for (const p of PRINTER_PLATFORMS) {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name;
-      qSel.appendChild(opt);
-    }
-    qSel.value = this.state.printerId;
+    const lang = this.settings.lang;
+    $('lbl-active-printer').textContent = this.getActivePrinter().name;
+    $('printer-count-badge').textContent = String(PRINTER_PLATFORMS.length);
 
     // Hardpoint selects (MCP & Part Snap)
     for (const selId of ['mcp-hp-select', 'pe-snap-hp']) {
@@ -812,7 +818,7 @@ class App3dich {
       for (const hp of MOUNT_HARDPOINTS) {
         const opt = document.createElement('option');
         opt.value = hp.id;
-        opt.textContent = hp.label[this.settings.lang] || hp.label.en;
+        opt.textContent = hp.label[lang] || hp.label.en;
         sel.appendChild(opt);
       }
     }
@@ -827,24 +833,52 @@ class App3dich {
       mSel.appendChild(opt);
     }
 
-    // Gemini Model & Style selects
+    // AI Provider Selector (Gemini 2026 / AGY Kasa / AGY Toshi)
+    const pSel = $('ai-provider-select');
+    pSel.innerHTML = AI_PROVIDERS.map((p) => `<option value="${p.id}">${p.label[lang] || p.label.en}</option>`).join('');
+    pSel.value = this.settings.provider || 'gemini';
+
+    // Gemini Model & AGY Model & Style selects
     const tmSel = $('gemini-text-model');
-    tmSel.innerHTML = GEMINI_TEXT_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
-    tmSel.value = this.settings.textModel;
+    if (tmSel.options.length === 0) {
+      tmSel.innerHTML = GEMINI_TEXT_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+    }
+    tmSel.value = this.settings.textModel || 'gemini-3.8-flash';
+    if (!tmSel.value && tmSel.options.length > 0) tmSel.selectedIndex = 0;
 
     const imSel = $('gemini-image-model');
-    imSel.innerHTML = GEMINI_IMAGE_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
-    imSel.value = this.settings.imageModel;
+    if (imSel.options.length === 0) {
+      imSel.innerHTML = GEMINI_IMAGE_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+    }
+    imSel.value = this.settings.imageModel || 'gemini-3.1-flash-image';
+    if (!imSel.value && imSel.options.length > 0) imSel.selectedIndex = 0;
+
+    const agySel = $('agy-model-select');
+    agySel.innerHTML = AGY_MODELS.map((m) => `<option value="${m.id}">${m.label}</option>`).join('');
+    agySel.value = this.settings.agyModel || 'gemini-3.8-flash-high';
 
     const rsSel = $('render-style-select');
-    rsSel.innerHTML = RENDER_STYLES.map((s) => `<option value="${s.id}">${s.name[this.settings.lang] || s.name.en}</option>`).join('');
+    rsSel.innerHTML = RENDER_STYLES.map((s) => `<option value="${s.id}">${s.name[lang] || s.name.en}</option>`).join('');
 
     $('gemini-api-key').value = this.settings.apiKey || '';
+    this._syncProviderUI();
 
     // Color swatches
     this._renderSwatches();
     this._renderDemoParts();
     this._renderIdeasList();
+  }
+
+  _syncProviderUI() {
+    const prov = this.settings.provider || 'gemini';
+    const isAgy = prov === 'agy-kasa' || prov === 'agy-toshi';
+    $('provider-gemini-box').hidden = isAgy;
+    $('provider-agy-box').hidden = !isAgy;
+    if (isAgy) {
+      $('agy-token-input').value = prov === 'agy-toshi' ? (this.settings.agyToshiToken || '') : (this.settings.agyKasaToken || '');
+      $('agy-url-input').value = prov === 'agy-toshi' ? (this.settings.agyToshiUrl || '') : (this.settings.agyKasaUrl || '');
+      $('agy-bridge-status').textContent = '';
+    }
   }
 
   _renderSwatches() {
@@ -890,7 +924,7 @@ class App3dich {
   _renderCatalog() {
     const lang = this.settings.lang;
     $('active-mod-count').textContent = this.state.activeModIds.length;
-    $('quick-printer-select').value = this.state.printerId;
+    $('lbl-active-printer').textContent = this.getActivePrinter().name;
 
     // Category filter chips
     const chipWrap = $('category-chips');
@@ -952,23 +986,61 @@ class App3dich {
     }
   }
 
+  _filterPrinters() {
+    const q = (this.state.printerSearch || '').trim().toLowerCase();
+    const v = this.state.printerVendor || 'ALL';
+    return PRINTER_PLATFORMS.filter((p) => {
+      if (v !== 'ALL') {
+        if (v === 'Other') {
+          if (MAIN_VENDOR_SET.has(p.vendor)) return false;
+        } else if (p.vendor !== v) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      return `${p.id} ${p.name} ${p.vendor} ${p.kinLabel} ${p.buildVolume.x}x${p.buildVolume.y}`.toLowerCase().includes(q);
+    });
+  }
+
+  _renderVendorChips(containerEl, onChange) {
+    const lang = this.settings.lang;
+    containerEl.innerHTML = '';
+    for (const v of PRINTER_VENDORS) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `chip ${this.state.printerVendor === v ? 'active' : ''}`;
+      b.textContent = v === 'ALL' ? (lang === 'tr' ? 'Tümü' : 'All') : v === 'Other' ? (lang === 'tr' ? 'Diğer' : 'Other') : v;
+      b.addEventListener('click', () => {
+        this.state.printerVendor = v;
+        onChange();
+      });
+      containerEl.appendChild(b);
+    }
+  }
+
   _renderPrintersAndPresets() {
     const lang = this.settings.lang;
+    const filtered = this._filterPrinters();
+    $('printer-count-badge').textContent = `${filtered.length}/${PRINTER_PLATFORMS.length}`;
+
+    this._renderVendorChips($('printer-vendor-chips'), () => this._renderPrintersAndPresets());
+
     const pList = $('printer-list');
     pList.innerHTML = '';
-    for (const p of PRINTER_PLATFORMS) {
+    for (const p of filtered) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `printer-item ${this.state.printerId === p.id ? 'active' : ''}`;
+      btn.dataset.printerId = p.id;
       btn.innerHTML = `
-        <div class="row-between"><strong>${escapeHtml(p.name)}</strong><span class="tag mono">${p.kinematics.toUpperCase()}</span></div>
+        <div class="row-between"><strong>${escapeHtml(p.name)}</strong><span class="tag mono">${escapeHtml(p.kinLabel || p.kinematics.toUpperCase())}</span></div>
         <span class="small-muted">${escapeHtml(p.tagline[lang] || p.tagline.en)}</span>
       `;
       btn.addEventListener('click', () => this.setPrinter(p.id));
       pList.appendChild(btn);
     }
 
-    $('custom-dims-card').hidden = this.state.printerId !== 'custom-scratch';
+    $('custom-dims-card').hidden = this.state.printerId !== 'custom_scratch';
     $('custom-vol-x').value = this.state.customDims.x;
     $('custom-vol-y').value = this.state.customDims.y;
     $('custom-vol-z').value = this.state.customDims.z;
@@ -987,6 +1059,34 @@ class App3dich {
       `;
       btn.addEventListener('click', () => this.applyPreset(pre.id));
       preList.appendChild(btn);
+    }
+
+    if (!$('printer-modal').hidden) this._renderPrinterModal();
+  }
+
+  _renderPrinterModal() {
+    const lang = this.settings.lang;
+    this._renderVendorChips($('printer-modal-vendors'), () => {
+      this._renderPrinterModal();
+      this._renderPrintersAndPresets();
+    });
+    const grid = $('printer-modal-grid');
+    grid.innerHTML = '';
+    const filtered = this._filterPrinters();
+    for (const p of filtered) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `printer-item ${this.state.printerId === p.id ? 'active' : ''}`;
+      btn.dataset.printerId = p.id;
+      btn.innerHTML = `
+        <div class="row-between"><strong>${escapeHtml(p.name)}</strong><span class="tag mono">${p.buildVolume.x}×${p.buildVolume.y}</span></div>
+        <span class="small-muted">${escapeHtml(p.vendor)} • ${escapeHtml(p.kinLabel || p.kinematics)} • ${p.stock.maxFlowMm3s} mm³/s</span>
+      `;
+      btn.addEventListener('click', () => {
+        this.setPrinter(p.id);
+        $('printer-modal').hidden = true;
+      });
+      grid.appendChild(btn);
     }
   }
 
@@ -1113,14 +1213,25 @@ class App3dich {
     }
   }
 
-  // ==================== GEMINI AI STUDIO HANDLERS ====================
+  // ==================== GEMINI / AGY AI STUDIO HANDLERS ====================
+  _getActiveProviderCreds() {
+    const provider = $('ai-provider-select').value || 'gemini';
+    const apiKey = $('gemini-api-key').value.trim();
+    const agyToken = $('agy-token-input').value.trim();
+    const agyUrl = $('agy-url-input').value.trim();
+    const agyModel = $('agy-model-select').value;
+    const isAgy = provider === 'agy-kasa' || provider === 'agy-toshi';
+    const hasCreds = isAgy ? Boolean(agyToken) : (Boolean(apiKey) || this.settings.useProxy);
+    return { provider, isAgy, hasCreds, apiKey, agyToken, agyUrl, agyModel };
+  }
+
   async _runAudit(forceOffline = false) {
     const status = $('audit-status');
     const out = $('audit-output');
     const recWrap = $('audit-rec-mods');
-    const apiKey = $('gemini-api-key').value.trim();
+    const creds = this._getActiveProviderCreds();
 
-    if (forceOffline || (!apiKey && !this.settings.useProxy)) {
+    if (forceOffline || !creds.hasCreds) {
       const res = buildOfflineEngineeringAudit(
         this.getActivePrinter(),
         this.state.activeModIds,
@@ -1136,12 +1247,18 @@ class App3dich {
 
     const btn = $('btn-run-gemini-audit');
     btn.disabled = true;
-    status.textContent = this.settings.lang === 'tr' ? '3D görüntü yakalanıyor ve Gemini analiz ediyor...' : 'Capturing 3D viewport & analyzing with Gemini...';
+    status.textContent = this.settings.lang === 'tr'
+      ? `3D görüntü yakalanıyor ve ${creds.provider.toUpperCase()} analiz ediyor...`
+      : `Capturing 3D viewport & analyzing via ${creds.provider.toUpperCase()}...`;
     try {
       const snapshotDataUrl = this._captureViewportPng();
       const res = await evaluateBuildWithGemini({
-        apiKey,
+        provider: creds.provider,
+        apiKey: creds.apiKey,
         model: $('gemini-text-model').value,
+        agyToken: creds.agyToken,
+        agyUrl: creds.agyUrl,
+        agyModel: creds.agyModel,
         lang: this.settings.lang,
         printer: this.getActivePrinter(),
         activeModIds: this.state.activeModIds,
@@ -1193,29 +1310,33 @@ class App3dich {
   }
 
   async _generate3DImage() {
-    const apiKey = $('gemini-api-key').value.trim();
+    const creds = this._getActiveProviderCreds();
     const status = $('render-status');
     const styleId = $('render-style-select').value;
     const customPrompt = $('render-prompt').value.trim();
 
-    if (!apiKey && !this.settings.useProxy) {
-      status.textContent = this.settings.lang === 'tr'
-        ? '3D görsel üretimi için üstteki alana Gemini API anahtarını gir (ücretsiz AI Studio anahtarı çalışır).'
-        : 'Enter a Gemini API key above to generate AI 3D studio renders.';
+    if (!creds.hasCreds) {
+      status.textContent = creds.isAgy
+        ? (this.settings.lang === 'tr' ? 'AGY köprüsü için terminalde "3dich token" yazıp 256-bit tokeni gir.' : 'Run "3dich token" in terminal and paste your 256-bit bridge token.')
+        : (this.settings.lang === 'tr' ? '3D görsel üretimi için üstteki alana Gemini API anahtarını gir.' : 'Enter a Gemini API key above to generate AI 3D studio renders.');
       return;
     }
 
     const btn = $('btn-gen-3d-image');
     btn.disabled = true;
     status.textContent = this.settings.lang === 'tr'
-      ? 'Gemini 3D görsel oluşturuyor (10–25sn)...'
-      : 'Generating Gemini 3D visual (10–25s)...';
+      ? `${creds.provider.toUpperCase()} 3D görsel oluşturuyor (10–30sn)...`
+      : `Generating 3D visual via ${creds.provider.toUpperCase()} (10–30s)...`;
 
     try {
       const snapshotDataUrl = this._captureViewportPng();
       const res = await generate3DRenderWithGemini({
-        apiKey,
+        provider: creds.provider,
+        apiKey: creds.apiKey,
         imageModel: $('gemini-image-model').value,
+        agyToken: creds.agyToken,
+        agyUrl: creds.agyUrl,
+        agyModel: creds.agyModel,
         lang: this.settings.lang,
         styleId,
         customPrompt,
@@ -1296,13 +1417,13 @@ class App3dich {
     log.appendChild(userDiv);
     log.scrollTop = log.scrollHeight;
 
-    const apiKey = $('gemini-api-key').value.trim();
+    const creds = this._getActiveProviderCreds();
     const aiDiv = document.createElement('div');
     aiDiv.className = 'chat-msg chat-ai';
     aiDiv.textContent = '...';
     log.appendChild(aiDiv);
 
-    if (!apiKey && !this.settings.useProxy) {
+    if (!creds.hasCreds) {
       const off = buildOfflineEngineeringAudit(
         this.getActivePrinter(), this.state.activeModIds, this.state.customParts, this.evalResult, this.settings.lang,
       );
@@ -1313,8 +1434,12 @@ class App3dich {
 
     try {
       const res = await chatWithEngineer({
-        apiKey,
+        provider: creds.provider,
+        apiKey: creds.apiKey,
         model: $('gemini-text-model').value,
+        agyToken: creds.agyToken,
+        agyUrl: creds.agyUrl,
+        agyModel: creds.agyModel,
         lang: this.settings.lang,
         history: this.chatHistory,
         message: msg,
@@ -1390,8 +1515,11 @@ class App3dich {
       el.textContent = t(lang, el.dataset.i18n);
     }
     $('mod-search').placeholder = t(lang, 'searchModsPlaceholder');
+    $('printer-search-dock').placeholder = t(lang, 'searchPrinterPlaceholder');
+    $('printer-search-modal').placeholder = t(lang, 'searchPrinterPlaceholder');
     $('mcp-brief').placeholder = t(lang, 'mcpBriefPlaceholder');
     $('gemini-api-key').placeholder = t(lang, 'apiKeyPlaceholder');
+    $('agy-token-input').placeholder = t(lang, 'agyTokenPlaceholder');
     $('render-prompt').placeholder = t(lang, 'renderPromptPlaceholder');
     $('chat-input').placeholder = t(lang, 'chatPlaceholder');
     this._populateStaticSelectors();
@@ -1432,8 +1560,25 @@ class App3dich {
 
   // ==================== EVENT BINDINGS ====================
   _bindEvents() {
-    // Top bar printer & cameras
-    $('quick-printer-select').addEventListener('change', (e) => this.setPrinter(e.target.value));
+    // Top bar 155+ Printer Picker Modal & Dock Search
+    $('btn-open-printer-modal').addEventListener('click', () => {
+      $('printer-modal').hidden = false;
+      $('printer-search-modal').value = this.state.printerSearch;
+      this._renderPrinterModal();
+      $('printer-search-modal').focus();
+    });
+    $('btn-close-printer-modal').addEventListener('click', () => { $('printer-modal').hidden = true; });
+    $('printer-search-modal').addEventListener('input', (e) => {
+      this.state.printerSearch = e.target.value;
+      $('printer-search-dock').value = e.target.value;
+      this._renderPrinterModal();
+      this._renderPrintersAndPresets();
+    });
+    $('printer-search-dock').addEventListener('input', (e) => {
+      this.state.printerSearch = e.target.value;
+      $('printer-search-modal').value = e.target.value;
+      this._renderPrintersAndPresets();
+    });
     for (const btn of document.querySelectorAll('[data-cam]')) {
       btn.addEventListener('click', () => {
         this.camera.setPreset(btn.dataset.cam, this.getActivePrinter());
@@ -1635,7 +1780,11 @@ class App3dich {
       });
     }
 
-    // Gemini API Controls
+    // AI Provider Switcher, Gemini 2026 Live Model Refresh & Zero-Trust AGY Bridge Controls
+    $('ai-provider-select').addEventListener('change', (e) => {
+      this.settings = saveSettings({ provider: e.target.value });
+      this._syncProviderUI();
+    });
     $('btn-save-key').addEventListener('click', () => {
       this.settings = saveSettings({
         apiKey: $('gemini-api-key').value.trim(),
@@ -1648,6 +1797,58 @@ class App3dich {
       $('gemini-api-key').value = '';
       this.settings = saveSettings({ apiKey: '' });
       this.toast(t(this.settings.lang, 'toastKeyCleared'));
+    });
+    $('btn-refresh-models').addEventListener('click', async () => {
+      const key = $('gemini-api-key').value.trim();
+      const st = $('models-sync-status');
+      if (!key) { st.textContent = 'API key required'; return; }
+      st.textContent = 'Fetching...';
+      try {
+        const { textModels, imageModels } = await fetchLiveGeminiModels(key);
+        if (textModels.length > 0) {
+          $('gemini-text-model').innerHTML = textModels.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
+          this.settings = saveSettings({ textModel: textModels[0].id });
+        }
+        if (imageModels.length > 0) {
+          $('gemini-image-model').innerHTML = imageModels.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
+          this.settings = saveSettings({ imageModel: imageModels[0].id });
+        }
+        st.textContent = `✓ ${textModels.length}T / ${imageModels.length}I`;
+      } catch (err) {
+        st.textContent = `⚠ ${err.message}`;
+      }
+    });
+    $('btn-save-agy-token').addEventListener('click', () => {
+      const prov = $('ai-provider-select').value;
+      const tok = $('agy-token-input').value.trim();
+      const url = $('agy-url-input').value.trim();
+      const patch = prov === 'agy-toshi'
+        ? { agyToshiToken: tok, agyToshiUrl: url, agyModel: $('agy-model-select').value }
+        : { agyKasaToken: tok, agyKasaUrl: url, agyModel: $('agy-model-select').value };
+      this.settings = saveSettings(patch);
+      this.toast(`${prov.toUpperCase()} Zero-Trust token saved locally.`);
+    });
+    $('btn-clear-agy-token').addEventListener('click', () => {
+      const prov = $('ai-provider-select').value;
+      $('agy-token-input').value = '';
+      this.settings = saveSettings(prov === 'agy-toshi' ? { agyToshiToken: '' } : { agyKasaToken: '' });
+      this.toast(t(this.settings.lang, 'toastKeyCleared'));
+    });
+    $('agy-model-select').addEventListener('change', (e) => { this.settings = saveSettings({ agyModel: e.target.value }); });
+    $('btn-test-agy').addEventListener('click', async () => {
+      const prov = $('ai-provider-select').value;
+      const st = $('agy-bridge-status');
+      st.textContent = 'Testing...';
+      try {
+        const res = await testAgyBridge({
+          target: prov,
+          token: $('agy-token-input').value.trim(),
+          customUrl: $('agy-url-input').value.trim(),
+        });
+        st.textContent = `✓ ${String(res.node || prov).toUpperCase()} (${res.auth || '256-bit'})`;
+      } catch (err) {
+        st.textContent = `⚠ ${err.message}`;
+      }
     });
     $('gemini-text-model').addEventListener('change', (e) => { this.settings = saveSettings({ textModel: e.target.value }); });
     $('gemini-image-model').addEventListener('change', (e) => { this.settings = saveSettings({ imageModel: e.target.value }); });
@@ -1754,6 +1955,7 @@ class App3dich {
         e.preventDefault(); this.redo(); return;
       }
       if (e.key === 'Escape') {
+        $('printer-modal').hidden = true;
         $('export-modal').hidden = true;
         $('lightbox-modal').hidden = true;
         return;

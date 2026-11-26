@@ -1,5 +1,6 @@
 // 3dich — Zero-Dependency Node.js 22 Production Server
-// Serves docs/ static PWA + /api/health + read-only /api/solidcraft-library + optional /api/gemini/proxy
+// Serves docs/ static PWA + /api/health + read-only /api/solidcraft-library
+// + /api/gemini/proxy (2026 models) + Zero-Trust pass-through /api/agy/{kasa,toshi}
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -11,6 +12,8 @@ const PORT = Number(process.env.PORT) || 8099;
 const DOCS_DIR = path.resolve(process.env.DOCS_DIR || path.join(process.cwd(), 'docs'));
 const LIBRARY_DIRS_RAW = process.env.LIBRARY_DIRS || '';
 const SERVER_GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+const AGY_KASA_UPSTREAM = (process.env.AGY_KASA_UPSTREAM || 'http://172.17.0.1:8766').replace(/\/+$/, '');
+const AGY_TOSHI_UPSTREAM = (process.env.AGY_TOSHI_UPSTREAM || 'http://100.79.246.19:8767').replace(/\/+$/, '');
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -28,14 +31,8 @@ const MIME_TYPES = {
 };
 
 const CAD_EXTS = new Set(['.stl', '.obj', '.3mf', '.sc']);
-const ALLOWED_GEMINI_MODELS = new Set([
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.5-flash-image',
-  'gemini-3-pro-image-preview',
-  'gemini-2.0-flash-exp-image-generation',
-]);
+const GEMINI_MODEL_RE = /^(gemini-[234](\.[0-9]+)?-[a-z0-9.-]+|imagen-[34](\.[0-9]+)?-[a-z0-9.-]+)$/i;
+const GEMINI_ACTIONS = new Set(['generateContent', 'predict']);
 
 function scanLibraryFiles() {
   const index = new Map();
@@ -91,6 +88,17 @@ function sendJson(res, status, obj) {
   res.end(body);
 }
 
+async function readBodyLimited(req, maxBytes = 10 * 1024 * 1024) {
+  const chunks = [];
+  let bytes = 0;
+  for await (const c of req) {
+    bytes += c.length;
+    if (bytes > maxBytes) throw Object.assign(new Error('Payload too large'), { status: 413 });
+    chunks.push(c);
+  }
+  return Buffer.concat(chunks);
+}
+
 export function createServer() {
   return http.createServer(async (req, res) => {
     try {
@@ -98,7 +106,7 @@ export function createServer() {
       const p = url.pathname;
 
       if (p === '/api/health' && req.method === 'GET') {
-        return sendJson(res, 200, { ok: true, app: '3dich', version: '1.0.0', uptimeSec: Math.round(process.uptime()) });
+        return sendJson(res, 200, { ok: true, app: '3dich', version: '1.1.0', uptimeSec: Math.round(process.uptime()) });
       }
 
       if (p === '/api/solidcraft-library' && req.method === 'GET') {
@@ -120,24 +128,57 @@ export function createServer() {
         return;
       }
 
+      // Zero-Trust Pass-Through Proxy for AGY Kasa / AGY Toshi
+      // Server holds NO token — strictly requires & forwards user's X-3dich-Token / Authorization header!
+      const agyMatch = /^\/api\/agy\/(kasa|toshi)\/(health|complete)$/.exec(p);
+      if (agyMatch) {
+        const [, targetNode, subPath] = agyMatch;
+        const token = String(req.headers['x-3dich-token'] || req.headers['authorization'] || '').trim();
+        if (!token) {
+          return sendJson(res, 401, { ok: false, error: 'Missing X-3dich-Token header (Zero-Trust enforced)' });
+        }
+        const upstreamBase = targetNode === 'toshi' ? AGY_TOSHI_UPSTREAM : AGY_KASA_UPSTREAM;
+        const fwdHeaders = {
+          'X-3dich-Token': token.replace(/^Bearer\s+/i, ''),
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+        };
+        let body = undefined;
+        if (req.method === 'POST') {
+          body = await readBodyLimited(req, 8 * 1024 * 1024);
+          fwdHeaders['Content-Type'] = 'application/json';
+        }
+        try {
+          const upstream = await fetch(`${upstreamBase}/${subPath}`, {
+            method: req.method,
+            headers: fwdHeaders,
+            body,
+            signal: AbortSignal.timeout(115_000),
+          });
+          const respText = await upstream.text();
+          res.writeHead(upstream.status, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          });
+          res.end(respText);
+        } catch (err) {
+          sendJson(res, 503, { ok: false, error: `AGY ${targetNode} bridge unreachable: ${err?.message || 'offline'}` });
+        }
+        return;
+      }
+
       if (p === '/api/gemini/proxy' && req.method === 'POST') {
-        const model = url.searchParams.get('model') || 'gemini-2.5-flash';
-        if (!ALLOWED_GEMINI_MODELS.has(model)) {
-          return sendJson(res, 400, { error: 'Unsupported model ID' });
+        const model = url.searchParams.get('model') || 'gemini-3.8-flash';
+        const action = url.searchParams.get('action') || 'generateContent';
+        if (!GEMINI_MODEL_RE.test(model) || !GEMINI_ACTIONS.has(action)) {
+          return sendJson(res, 400, { error: 'Unsupported model ID or action' });
         }
         const key = String(req.headers['x-goog-api-key'] || SERVER_GEMINI_KEY).trim();
         if (!key) return sendJson(res, 401, { error: 'Missing Gemini API key' });
 
-        const chunks = [];
-        let bytes = 0;
-        for await (const c of req) {
-          bytes += c.length;
-          if (bytes > 12 * 1024 * 1024) return sendJson(res, 413, { error: 'Payload too large' });
-          chunks.push(c);
-        }
-        const body = Buffer.concat(chunks);
+        const body = await readBodyLimited(req, 12 * 1024 * 1024);
         const upstream = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${action}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
@@ -179,7 +220,7 @@ export function createServer() {
       if (req.method === 'HEAD') return res.end();
       fs.createReadStream(target).pipe(res);
     } catch (err) {
-      sendJson(res, 500, { error: err?.message || 'Internal error' });
+      sendJson(res, err?.status || 500, { error: err?.message || 'Internal error' });
     }
   });
 }

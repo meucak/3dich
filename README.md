@@ -15,8 +15,8 @@ Live Web App (GitHub Pages): **https://meucak.github.io/3dich/**
 - **Tri-Tier Rendering Fallback:** Automatically cascades `WebGL2` → `WebGL1` → `SW-2D` (software painter/Z-sort Canvas2D) so it renders cleanly even on legacy GPUs or `--disable-gpu` environments.
 - **Off-Thread Web Worker CAD Parsing:** Binary/ASCII STL (with binary `"solid "` header trap protection), OBJ, 3MF (ZIP-deflate + XML), ZIP, and SolidCraft `.sc` archives parse in a dedicated Web Worker with zero-copy `Transferable` buffers.
 
-### 2. 7 Base Printers × 59 Engineered Mods × 6 Curated Presets
-- **Platforms:** Voron 2.4 R2 (300), Creality Ender-3 V2/S1, Prusa MK4S/i3, Enclosed CoreXY (X1C/P1S class), RatRig V-Core 4 (400), Voron V0.2 (120), and Custom Scratch-Build (editable X/Y/Z build volume & kinematics).
+### 2. 172 Real-World 3D Printers × 59 Engineered Mods × 6 Curated Presets
+- **Searchable 172-Printer Database (`docs/js/printers_db.js`):** Creality (Ender-3 Classic, Ender-3 Pro, Ender-3 V2/Neo/S1/V3 SE/KE/CoreXZ, Ender-5, CR-10, K1/K1C/K1 Max/K2 Plus), Prusa (MK2S, MK3S+, MK4S, MINI+, XL, CORE One), Bambu Lab (A1 Mini, A1, P1P, P1S, X1C, X1E, H2D, H2S), Voron (V0.2, Switchwire, Trident, 2.4 R2, Tridex), RatRig V-Core 3.1/4, VzBot AWD, Anycubic (i3 Mega, Kobra 1/2/3/S1), Elegoo (Neptune 2/3/4, Centauri Carbon), Sovol (SV01–SV08), QIDI Tech (X-Max 3, Q1 Pro, Plus4), Artillery Sidewinder, FlashForge AD5M, UltiMaker, FLSUN Delta (Q5, QQ-S, SR, V400, T1 Pro, S1 Pro), Anet A8, Tevo, Kingroon, Tronxy, TwoTrees, BIQU, Snapmaker, Raise3D, LulzBot, and **Custom Scratch-Build** — rendered across 4 true procedural 3D chassis architectures (`cube`, `gantry`, `cantilever`, and 3-tower `delta`)!
 - **10 Mod Categories (59 Mods):**
   1. *Hotend & Extrusion:* Phaetus Rapido 2 UHF, E3D Revo HF, Slice Mosquito Magnum+ (450°C), CHC Pro, Closed-Loop Watercooled Hotend, Orbiter V2.0, Galileo 2 (G2E)
   2. *Cooling & Airflow:* Voron StealthBurner, Dragon Burner Dual-4010, Hero Me Gen 7 Dual-5015, External CPAP 6.5 kPa Turbo + Hose, Side 120mm Aux Fan, Rear PWM Exhaust
@@ -39,16 +39,25 @@ Live Web App (GitHub Pages): **https://meucak.github.io/3dich/**
 - Calculates X/Y/Z moving mass, natural resonant frequencies ($f_X, f_Y$), Input Shaper Bode/PSD resonance spectrum (10–120 Hz), volumetric flow vs. cooling vs. motion bottlenecks, 3DBenchy print-time delta, filament thermal compatibility matrix (PLA through PEEK), PSU headroom, dBA noise, 3D AABB collisions, and thermal softening risk (e.g., PLA near hotend or inside a heated chamber).
 - One-click export for tailored **Klipper `printer.cfg`**, **BOM CSV**, **Project JSON**, **3D Viewport PNG**, and **Merged Custom Parts Binary STL**.
 
-### 5. Embedded Gemini API Vision, Engineering Audit & 3D Image Studio
-- **Direct Browser CORS:** Works directly from GitHub Pages using your Gemini API key stored locally in browser storage (plus an instant deterministic Offline Physics Audit fallback when no key is set).
-- **Multimodal Performance Audit (`gemini-2.5-flash` / `gemini-2.5-pro`):** Captures the live 3D viewport PNG + complete telemetry & SolidCraft CAD dossier, audits custom part inertia/airflow/thermal safety, and emits 1-click **"Apply Mod"** chips.
-- **Gemini 3D Visual Studio (`gemini-2.5-flash-image` / `gemini-3-pro-image-preview`):** Generates photorealistic studio renders, CAD cutaways, maker workshop shots, CFD thermal renders, and brand-new 3D part concepts persisted in an IndexedDB gallery.
+### 5. Latest 2026 Gemini API + Zero-Trust Antigravity (`AGY Kasa` & `AGY Toshi`)
+- **Latest 2026 Gemini Models + Live Discovery:** Supports `gemini-3.8-flash`, `gemini-4-carbon`, `gemini-4-argon`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-image`, `gemini-3-pro-image`, `imagen-4.0-generate-001`, plus a live **"Fetch Live Models"** (`ListModels`) button and automatic 404 fallback chain.
+- **Zero-Trust Hardened `AGY Kasa` & `AGY Toshi` Bridges (`scripts/agy_secure_bridge.py`):**
+  - Never binds `0.0.0.0` — strictly loopback + Tailscale WireGuard + micro-segmented `10.89.99.0/24` Docker subnet (public Internet and LAN Wi-Fi blocked with `403`).
+  - 256-bit high-entropy Bearer token (`chmod 0600`, retrieved locally via `3dich token`, constant-time `hmac.compare_digest` verification on every endpoint including `/health`).
+  - Strict CORS Origin allowlist (never `*`), 5-strike 15-minute brute-force IP lockout, sliding-window rate limit, max-2 concurrency cap, PNG magic-byte verification, and sandboxed `--print --disable-slash-commands --sandbox` CLI execution inside an isolated `0700` temp directory.
 
 ---
 
 ## Quick Start
 
-### Option A — Web / GitHub Pages (Zero Install)
+### Option A — Terminal Launcher (Kasa & Toshi)
+```bash
+3dich           # Starts Docker if needed and opens 3dich studio
+3dich status    # Check Docker container + Zero-Trust AGY bridge health
+3dich token     # Print your private 256-bit AGY bridge token
+```
+
+### Option B — Web / GitHub Pages (Zero Install)
 Open **https://meucak.github.io/3dich/** in any modern desktop, tablet, or mobile browser. Works offline as an installable PWA.
 
 ### Option B — Local Docker Compose (with Local SolidCraft Library Bridge)

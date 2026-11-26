@@ -1,20 +1,48 @@
-// 3dich — Gemini API Multimodal Engineering Evaluator, 3D Concept/Studio Image Generator & Co-Pilot
-// Works directly from GitHub Pages via verified CORS on generativelanguage.googleapis.com
-// AND optionally via local Docker proxy (/api/gemini/proxy). Includes rich Offline Audit fallback.
+// 3dich — Latest 2026 Gemini API + Live Model Discovery + Zero-Trust AGY Kasa / AGY Toshi Bridge Client
+// Supports:
+//   1) Gemini API (Google AI Studio — Gemini 4, Gemini 3.8/3.5/3 Pro, Imagen 4, Gemini 3.1/3 Image) + Live ListModels
+//   2) AGY Kasa (Zero-Trust Bearer Token + Tailscale/Loopback IP-Restricted Hardened Bridge)
+//   3) AGY Toshi (Zero-Trust Bearer Token + Tailscale/Loopback IP-Restricted Hardened Bridge)
+//   4) Instant Deterministic Offline Principal Engineer Audit Fallback
 
 import { MOD_BY_ID, MOD_CATALOG, MATERIAL_BY_ID } from './catalog.js';
 import { computeCustomPartMassG, formatDuration } from './physics_engine.js';
 
-export const GEMINI_TEXT_MODELS = [
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Fast + Vision)' },
-  { id: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro (Deep Engineering)' },
-  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Legacy Fast)' },
+export const AI_PROVIDERS = [
+  { id: 'gemini',    label: { tr: 'Gemini API (Google AI Studio)', en: 'Gemini API (Google AI Studio)' } },
+  { id: 'agy-kasa',  label: { tr: 'Antigravity — AGY Kasa (Güvenli Köprü)', en: 'Antigravity — AGY Kasa (Secure Bridge)' } },
+  { id: 'agy-toshi', label: { tr: 'Antigravity — AGY Toshi (Güvenli Köprü)', en: 'Antigravity — AGY Toshi (Secure Bridge)' } },
 ];
 
+// Latest 2026 Active Gemini Text/Multimodal Models (plus auto-discovery via ListModels!)
+export const GEMINI_TEXT_MODELS = [
+  { id: 'gemini-3.8-flash',    label: 'Gemini 3.8 Flash (2026 Default • Fast + Vision)' },
+  { id: 'gemini-4-carbon',     label: 'Gemini 4 Carbon (Frontier Engineering)' },
+  { id: 'gemini-4-argon',      label: 'Gemini 4 Argon (Balanced Frontier)' },
+  { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (Ultra Fast)' },
+  { id: 'gemini-3-pro-preview',label: 'Gemini 3 Pro Preview (Deep Reasoning)' },
+  { id: 'gemini-2.5-flash',    label: 'Gemini 2.5 Flash (Compat / Auto-Route)' },
+  { id: 'gemini-2.5-pro',      label: 'Gemini 2.5 Pro (Compat / Auto-Route)' },
+];
+
+// Latest 2026 Active Gemini & Imagen 4 Image Generation Models
 export const GEMINI_IMAGE_MODELS = [
-  { id: 'gemini-2.5-flash-image',             label: 'Gemini 2.5 Flash Image (Nano Banana)' },
-  { id: 'gemini-3-pro-image-preview',         label: 'Gemini 3 Pro Image (Ultra Studio)' },
-  { id: 'gemini-2.0-flash-exp-image-generation', label: 'Gemini 2.0 Flash Image (Compat)' },
+  { id: 'gemini-3.1-flash-image',    label: 'Gemini 3.1 Flash Image (2026 Native 3D)' },
+  { id: 'gemini-3-pro-image',        label: 'Gemini 3 Pro Image (Ultra Studio)' },
+  { id: 'gemini-3-pro-image-preview',label: 'Gemini 3 Pro Image Preview' },
+  { id: 'imagen-4.0-generate-001',   label: 'Imagen 4 (Photorealistic Studio)' },
+  { id: 'gemini-2.5-flash-image',    label: 'Gemini 2.5 Flash Image (Compat)' },
+];
+
+// Verified Antigravity CLI Models (`agy models` on Kasa & Toshi)
+export const AGY_MODELS = [
+  { id: 'gemini-4-neon-high',   label: 'Gemini 4 Neon (High)' },
+  { id: 'gemini-4-neon-xhigh',  label: 'Gemini 4 Neon (XHigh)' },
+  { id: 'gemini-4-carbon-high', label: 'Gemini 4 Carbon (High)' },
+  { id: 'gemini-3.8-flash-high',label: 'Gemini 3.8 Flash (High)' },
+  { id: 'claude-opus-5-5-high', label: 'Claude Opus 5.5 (High)' },
+  { id: 'claude-sonnet-5-5-high', label: 'Claude Sonnet 5.5 (High)' },
+  { id: 'gpt-oss-120b-medium',  label: 'GPT-OSS 120B (Medium)' },
 ];
 
 export const RENDER_STYLES = [
@@ -89,6 +117,7 @@ export function buildEngineeringDossier(printer, activeModIds, customParts, eval
   return {
     platform: {
       name: printer.name,
+      vendor: printer.vendor || 'Custom',
       kinematics: printer.kinematics,
       buildVolumeMm: printer.buildVolume,
     },
@@ -119,14 +148,52 @@ export function buildEngineeringDossier(printer, activeModIds, customParts, eval
   };
 }
 
-export async function callGeminiAPI({ apiKey, model, payload, useProxy = false, fetchFn = fetch }) {
+// Live Model Discovery: queries Google AI Studio for EVERY active model supported by the user's API key!
+export async function fetchLiveGeminiModels(apiKey, fetchFn = fetch) {
+  const cleanKey = (apiKey || '').trim();
+  if (!cleanKey) throw new Error('MISSING_API_KEY');
+  const res = await fetchFn('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100', {
+    method: 'GET',
+    headers: { 'x-goog-api-key': cleanKey },
+  });
+  if (!res.ok) {
+    throw new Error(`ListModels HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const textModels = [];
+  const imageModels = [];
+  for (const m of data.models || []) {
+    const id = String(m.name || '').replace(/^models\//, '');
+    const methods = m.supportedGenerationMethods || [];
+    const label = m.displayName ? `${m.displayName} (${id})` : id;
+    if (/imagen/i.test(id) && (methods.includes('predict') || methods.includes('generateImages'))) {
+      imageModels.push({ id, label });
+    } else if (/image/i.test(id) && methods.includes('generateContent')) {
+      imageModels.push({ id, label });
+    } else if (/^gemini-/i.test(id) && !/embedding|aqa|tts|audio|live|veo|1\.0|1\.5|2\.0-flash-exp/i.test(id) && methods.includes('generateContent')) {
+      textModels.push({ id, label });
+    }
+  }
+  // Sort newest generation first (gemini-4 -> gemini-3 -> gemini-2.5)
+  const rank = (s) => {
+    const m = /gemini-(\d+(?:\.\d+)?)/i.exec(s);
+    if (m) return parseFloat(m[1]) * 10 + (/pro|carbon/i.test(s) ? 2 : 1);
+    if (/imagen-4/i.test(s)) return 45;
+    return 0;
+  };
+  textModels.sort((a, b) => rank(b.id) - rank(a.id));
+  imageModels.sort((a, b) => rank(b.id) - rank(a.id));
+  return { textModels, imageModels };
+}
+
+export async function callGeminiAPI({ apiKey, model, payload, action = 'generateContent', useProxy = false, fetchFn = fetch }) {
   const cleanKey = (apiKey || '').trim();
   if (!useProxy && !cleanKey) {
     throw new Error('MISSING_API_KEY');
   }
   const url = useProxy
-    ? `/api/gemini/proxy?model=${encodeURIComponent(model)}`
-    : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    ? `/api/gemini/proxy?model=${encodeURIComponent(model)}&action=${encodeURIComponent(action)}`
+    : `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:${action}`;
 
   const headers = { 'Content-Type': 'application/json' };
   if (cleanKey) headers['x-goog-api-key'] = cleanKey;
@@ -145,12 +212,74 @@ export async function callGeminiAPI({ apiKey, model, payload, useProxy = false, 
     } catch {
       errText = (await res.text()).slice(0, 240) || errText;
     }
-    throw new Error(`Gemini API Error (${res.status}): ${errText}`);
+    const err = new Error(`Gemini API Error (${res.status}): ${errText}`);
+    err.status = res.status;
+    throw err;
   }
   return await res.json();
 }
 
+// Zero-Trust Antigravity Bridge URL resolution (uses Kasa server proxy when hosted locally, or direct loopback/Tailscale URL!)
+export function resolveAgyEndpoint(target, customUrl = '') {
+  const manual = (customUrl || '').trim().replace(/\/+$/, '');
+  if (manual) return manual;
+  // When running on local 3dich Docker host (:8099), route safely through hardened server proxy!
+  if (typeof location !== 'undefined' && location.protocol === 'http:' && location.port === '8099') {
+    return target === 'agy-toshi' ? '/api/agy/toshi' : '/api/agy/kasa';
+  }
+  // When running from GitHub Pages on the user's own Kasa/Toshi machine, connect to local loopback bridge
+  return target === 'agy-toshi' ? 'http://127.0.0.1:8767' : 'http://127.0.0.1:8766';
+}
+
+export async function testAgyBridge({ target, token, customUrl = '', fetchFn = fetch }) {
+  const cleanTok = (token || '').trim();
+  if (!cleanTok) throw new Error('MISSING_AGY_TOKEN');
+  const base = resolveAgyEndpoint(target, customUrl);
+  const res = await fetchFn(`${base}/health`, {
+    method: 'GET',
+    headers: { 'X-3dich-Token': cleanTok },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `AGY Bridge HTTP ${res.status}`);
+  }
+  return data;
+}
+
+export async function callAgyBridge({ target, token, customUrl = '', model, prompt, systemPrompt = '', snapshotDataUrl = null, mode = 'text', fetchFn = fetch }) {
+  const cleanTok = (token || '').trim();
+  if (!cleanTok) throw new Error('MISSING_AGY_TOKEN');
+  const base = resolveAgyEndpoint(target, customUrl);
+  const res = await fetchFn(`${base}/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${cleanTok}`,
+      'X-3dich-Token': cleanTok,
+    },
+    body: JSON.stringify({
+      model: model || 'gemini-3.8-flash-high',
+      mode,
+      systemPrompt,
+      prompt,
+      imageDataUrl: snapshotDataUrl || null,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || `AGY Bridge HTTP ${res.status}`);
+  }
+  return data;
+}
+
 export function extractTextAndImages(apiJson) {
+  // Support both Gemini generateContent and Imagen 4 predict formats!
+  if (Array.isArray(apiJson?.predictions)) {
+    const imgs = apiJson.predictions
+      .filter((p) => p.bytesBase64Encoded)
+      .map((p) => `data:${p.mimeType || 'image/png'};base64,${p.bytesBase64Encoded}`);
+    return { text: '', images: imgs };
+  }
   const parts = apiJson?.candidates?.[0]?.content?.parts || [];
   let text = '';
   const images = [];
@@ -165,7 +294,6 @@ export function extractTextAndImages(apiJson) {
   return { text: text.trim(), images };
 }
 
-// Parse clickable [[mod:mod-id]] tags returned by Gemini or Offline Advisor
 export function extractRecommendedModIds(text) {
   const found = [];
   const seen = new Set();
@@ -181,7 +309,7 @@ export function extractRecommendedModIds(text) {
   return found;
 }
 
-export function buildEvaluationPayload({ lang, printer, activeModIds, customParts, evalResult, snapshotDataUrl }) {
+export function buildEvaluationPromptText({ lang, printer, activeModIds, customParts, evalResult }) {
   const dossier = buildEngineeringDossier(printer, activeModIds, customParts, evalResult);
   const availableIds = MOD_CATALOG.filter((m) => !activeModIds.includes(m.id))
     .slice(0, 35)
@@ -192,7 +320,7 @@ export function buildEvaluationPayload({ lang, printer, activeModIds, customPart
     ? 'Respond in crisp, authoritative Turkish (Türkçe) using Principal Mechanical/Mechatronics Engineer tone.'
     : 'Respond in crisp, authoritative English using Principal Mechanical/Mechatronics Engineer tone.';
 
-  const prompt = `${langInstr}
+  return `${langInstr}
 You are the chief 3D printer engineering evaluator inside "3dich".
 Analyze BOTH the attached 3D viewport render of the user's customized 3D printer AND the complete physical telemetry dossier below.
 
@@ -213,62 +341,107 @@ Available uninstalled mod IDs: ${availableIds}
 
 ENGINEERING DOSSIER (JSON):
 ${JSON.stringify(dossier, null, 2)}`;
+}
 
+export function buildEvaluationPayload(opts) {
+  const prompt = buildEvaluationPromptText(opts);
   const parts = [{ text: prompt }];
-  const img = stripDataUrl(snapshotDataUrl);
+  const img = stripDataUrl(opts.snapshotDataUrl);
   if (img) {
     parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
   }
   return {
     contents: [{ role: 'user', parts }],
-    generationConfig: { temperature: 0.35, maxOutputTokens: 1400 },
+    generationConfig: { temperature: 0.35, maxOutputTokens: 1500 },
   };
 }
 
 export async function evaluateBuildWithGemini(opts) {
+  const provider = opts.provider || 'gemini';
+  if (provider === 'agy-kasa' || provider === 'agy-toshi') {
+    const prompt = buildEvaluationPromptText(opts);
+    const res = await callAgyBridge({
+      target: provider,
+      token: opts.agyToken,
+      customUrl: opts.agyUrl,
+      model: opts.agyModel || 'gemini-3.8-flash-high',
+      prompt,
+      snapshotDataUrl: opts.snapshotDataUrl,
+      mode: 'audit',
+      fetchFn: opts.fetchFn,
+    });
+    return {
+      source: provider,
+      model: `${provider.toUpperCase()} (${res.model || opts.agyModel})`,
+      markdown: res.text || 'No response text received.',
+      recommendedMods: extractRecommendedModIds(res.text),
+    };
+  }
+
   const payload = buildEvaluationPayload(opts);
-  const json = await callGeminiAPI({
-    apiKey: opts.apiKey,
-    model: opts.model || 'gemini-2.5-flash',
-    payload,
-    useProxy: opts.useProxy,
-    fetchFn: opts.fetchFn,
-  });
-  const { text } = extractTextAndImages(json);
-  return {
-    source: 'gemini',
-    model: opts.model || 'gemini-2.5-flash',
-    markdown: text || 'No response text received.',
-    recommendedMods: extractRecommendedModIds(text),
-  };
+  const primaryModel = opts.model || 'gemini-3.8-flash';
+  const fallbackChain = [primaryModel, 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'].filter((v, i, a) => a.indexOf(v) === i);
+  let lastErr;
+  for (const m of fallbackChain) {
+    try {
+      const json = await callGeminiAPI({
+        apiKey: opts.apiKey,
+        model: m,
+        payload,
+        useProxy: opts.useProxy,
+        fetchFn: opts.fetchFn,
+      });
+      const { text } = extractTextAndImages(json);
+      return {
+        source: 'gemini',
+        model: m,
+        markdown: text || 'No response text received.',
+        recommendedMods: extractRecommendedModIds(text),
+      };
+    } catch (err) {
+      lastErr = err;
+      if (err.status !== 404) throw err;
+    }
+  }
+  throw lastErr;
 }
 
-export function buildImageGenPayload({ styleId, customPrompt, printer, activeModIds, customParts, snapshotDataUrl }) {
+export function buildImagePromptText({ styleId, customPrompt, printer, activeModIds, customParts }) {
   const style = RENDER_STYLES.find((s) => s.id === styleId) || RENDER_STYLES[0];
   const modNames = activeModIds.slice(0, 12).map((id) => MOD_BY_ID.get(id)?.name.en).filter(Boolean).join(', ');
   const customNames = customParts.map((p) => `${p.name} (${p.zone})`).join(', ');
 
-  let prompt;
   if (styleId === 'concept-part') {
-    prompt = `${style.prompt}\nSpecific mechanical part brief: ${customPrompt || 'Lightweight dual-5015 toolhead cooling duct bracket for Voron/CoreXY 3D printer with M3 heat-set insert bosses and chamfered airflow channels'}. Target printer: ${printer.name}.`;
-  } else {
-    const baseStyle = styleId === 'custom' ? (customPrompt || RENDER_STYLES[0].prompt) : style.prompt;
-    prompt = `${baseStyle}
+    return `${style.prompt}\nSpecific mechanical part brief: ${customPrompt || 'Lightweight dual-5015 toolhead cooling duct bracket for Voron/CoreXY 3D printer with M3 heat-set insert bosses and chamfered airflow channels'}. Target printer: ${printer.name}.`;
+  }
+  const baseStyle = styleId === 'custom' ? (customPrompt || RENDER_STYLES[0].prompt) : style.prompt;
+  return `${baseStyle}
 Subject details: ${printer.name} (${printer.kinematics.toUpperCase()} 3D printer).
 Key visible upgrades: ${modNames || 'Stock precision configuration'}.
 Custom CAD mounted parts: ${customNames || 'None'}.
 ${customPrompt && styleId !== 'custom' ? `Extra user direction: ${customPrompt}` : ''}
 Preserve the overall proportions, color scheme, and placement of mounted parts shown in the reference viewport render. Do not add watermarks or random text labels.`;
+}
+
+export function buildImageGenPayload(opts) {
+  const prompt = buildImagePromptText(opts);
+  const modelId = opts.imageModel || 'gemini-3.1-flash-image';
+
+  // Imagen 4 uses :predict schema
+  if (/^imagen-/i.test(modelId)) {
+    return {
+      instances: [{ prompt }],
+      parameters: { sampleCount: 1, aspectRatio: '4:3' },
+    };
   }
 
   const parts = [{ text: prompt }];
-  if (styleId !== 'concept-part') {
-    const img = stripDataUrl(snapshotDataUrl);
+  if (opts.styleId !== 'concept-part') {
+    const img = stripDataUrl(opts.snapshotDataUrl);
     if (img) {
       parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
     }
   }
-
   return {
     contents: [{ role: 'user', parts }],
     generationConfig: {
@@ -278,31 +451,92 @@ Preserve the overall proportions, color scheme, and placement of mounted parts s
 }
 
 export async function generate3DRenderWithGemini(opts) {
-  const payload = buildImageGenPayload(opts);
-  const json = await callGeminiAPI({
-    apiKey: opts.apiKey,
-    model: opts.imageModel || 'gemini-2.5-flash-image',
-    payload,
-    useProxy: opts.useProxy,
-    fetchFn: opts.fetchFn,
-  });
-  const { text, images } = extractTextAndImages(json);
-  if (images.length === 0) {
-    throw new Error(text ? `Model returned text only (no image): ${text.slice(0, 180)}` : 'No image returned by Gemini model.');
+  const provider = opts.provider || 'gemini';
+  if (provider === 'agy-kasa' || provider === 'agy-toshi') {
+    const prompt = buildImagePromptText(opts);
+    const res = await callAgyBridge({
+      target: provider,
+      token: opts.agyToken,
+      customUrl: opts.agyUrl,
+      model: opts.agyModel || 'gemini-4-neon-high',
+      prompt,
+      snapshotDataUrl: opts.styleId !== 'concept-part' ? opts.snapshotDataUrl : null,
+      mode: 'image',
+      fetchFn: opts.fetchFn,
+    });
+    if (!res.imageDataUrl) {
+      throw new Error(res.text ? `AGY returned text only: ${res.text.slice(0, 200)}` : 'AGY bridge did not produce an image file.');
+    }
+    return {
+      imageDataUrl: res.imageDataUrl,
+      caption: res.text || `${provider.toUpperCase()} 3D Render`,
+      model: `${provider.toUpperCase()} (${res.model || opts.agyModel})`,
+      styleId: opts.styleId,
+    };
   }
-  return {
-    imageDataUrl: images[0],
-    caption: text,
-    model: opts.imageModel || 'gemini-2.5-flash-image',
-    styleId: opts.styleId,
-  };
+
+  const chosen = opts.imageModel || 'gemini-3.1-flash-image';
+  const chain = [chosen, 'gemini-3.1-flash-image', 'gemini-3-pro-image-preview', 'gemini-2.5-flash-image'].filter((v, i, a) => a.indexOf(v) === i);
+  let lastErr;
+  for (const m of chain) {
+    try {
+      const payload = buildImageGenPayload({ ...opts, imageModel: m });
+      const action = /^imagen-/i.test(m) ? 'predict' : 'generateContent';
+      const json = await callGeminiAPI({
+        apiKey: opts.apiKey,
+        model: m,
+        payload,
+        action,
+        useProxy: opts.useProxy,
+        fetchFn: opts.fetchFn,
+      });
+      const { text, images } = extractTextAndImages(json);
+      if (images.length === 0) {
+        throw new Error(text ? `Model returned text only (no image): ${text.slice(0, 180)}` : 'No image returned by Gemini model.');
+      }
+      return {
+        imageDataUrl: images[0],
+        caption: text,
+        model: m,
+        styleId: opts.styleId,
+      };
+    } catch (err) {
+      lastErr = err;
+      if (err.status !== 404) throw err;
+    }
+  }
+  throw lastErr;
 }
 
-export async function chatWithEngineer({ apiKey, model, lang, history = [], message, printer, activeModIds, customParts, evalResult, snapshotDataUrl, useProxy = false, fetchFn = fetch }) {
+export async function chatWithEngineer(opts) {
+  const {
+    provider = 'gemini', apiKey, model, agyToken, agyUrl, agyModel,
+    lang, history = [], message, printer, activeModIds, customParts, evalResult,
+    snapshotDataUrl, useProxy = false, fetchFn = fetch,
+  } = opts;
   const dossier = buildEngineeringDossier(printer, activeModIds, customParts, evalResult);
   const sysText = `You are 3dich's embedded Principal 3D Printer & CAD Engineer. Language: ${lang === 'tr' ? 'Turkish' : 'English'}.
 Current printer live state: ${JSON.stringify(dossier)}.
 Keep answers practical, physics-backed, concise, and when recommending any catalog mod include [[mod:<id>]].`;
+
+  if (provider === 'agy-kasa' || provider === 'agy-toshi') {
+    const conv = history.slice(-6).map((h) => `${h.role === 'assistant' ? 'Engineer' : 'User'}: ${h.text}`).join('\n');
+    const res = await callAgyBridge({
+      target: provider,
+      token: agyToken,
+      customUrl: agyUrl,
+      model: agyModel || 'gemini-3.8-flash-high',
+      systemPrompt: sysText,
+      prompt: conv ? `${conv}\nUser: ${message}` : message,
+      snapshotDataUrl: history.length === 0 ? snapshotDataUrl : null,
+      mode: 'chat',
+      fetchFn,
+    });
+    return {
+      text: res.text || '...',
+      recommendedMods: extractRecommendedModIds(res.text),
+    };
+  }
 
   const contents = [];
   for (const h of history.slice(-6)) {
@@ -320,7 +554,7 @@ Keep answers practical, physics-backed, concise, and when recommending any catal
     contents,
     generationConfig: { temperature: 0.45, maxOutputTokens: 900 },
   };
-  const json = await callGeminiAPI({ apiKey, model: model || 'gemini-2.5-flash', payload, useProxy, fetchFn });
+  const json = await callGeminiAPI({ apiKey, model: model || 'gemini-3.8-flash', payload, useProxy, fetchFn });
   const { text } = extractTextAndImages(json);
   return {
     text: text || '...',
@@ -328,7 +562,7 @@ Keep answers practical, physics-backed, concise, and when recommending any catal
   };
 }
 
-// Rich Deterministic Offline Principal Engineer Audit (Zero-latency fallback when no API key is configured!)
+// Rich Deterministic Offline Principal Engineer Audit
 export function buildOfflineEngineeringAudit(printer, activeModIds, customParts, evalResult, lang = 'tr') {
   const cur = evalResult.current;
   const del = evalResult.deltas;
@@ -387,7 +621,7 @@ ${warnBlock ? `\n**Aktif Uyarılar & Çakışmalar:**\n${warnBlock}` : '\n- Çak
 ### 4. En Yüksek Yatırım Getirili Sonraki 3 Mod
 ${recLines || '- Yapılandırman tüm ana alt sistemlerde dengeli görünüyor!'}
 
-> *Daha derin görsel-mekanik analiz (3D ekran görüntüsü ile hava akışı & montaj denetimi) ve fotogerçekçi 3D stüdyo renderları için üstten Gemini API anahtarını gir.*`,
+> *Daha derin görsel-mekanik analiz ve fotogerçekçi 3D renderlar için Gemini 3.8/4 API anahtarını gir veya şifreli AGY Kasa / AGY Toshi köprüsüne bağlan.*`,
     };
   }
 
@@ -410,6 +644,6 @@ ${warnBlock ? `\n**Active Warnings & Collisions:**\n${warnBlock}` : '\n- Zero ph
 ### 4. Top 3 Highest-ROI Next Upgrades
 ${recLines || '- Your build is well balanced across hotend, cooling, and kinematics!'}
 
-> *Plug in a Gemini API key above to unlock Multimodal 3D Vision Audits and Photorealistic Gemini 3D Studio Renders.*`,
+> *Enter a Gemini 3.8/4 API key or authenticate with your private AGY Kasa / AGY Toshi Zero-Trust Bridge for Vision Audits & 3D Studio Renders.*`,
   };
 }

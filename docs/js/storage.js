@@ -8,9 +8,15 @@ const STATE_KEY = '3dich_build_v1';
 const DEFAULT_SETTINGS = {
   lang: 'tr',
   theme: 'dark',
+  provider: 'gemini',
   apiKey: '',
-  textModel: 'gemini-2.5-flash',
-  imageModel: 'gemini-2.5-flash-image',
+  textModel: 'gemini-3.8-flash',
+  imageModel: 'gemini-3.1-flash-image',
+  agyModel: 'gemini-3.8-flash-high',
+  agyKasaToken: '',
+  agyToshiToken: '',
+  agyKasaUrl: '',
+  agyToshiUrl: '',
   useProxy: false,
   dprCap: 2.0,
 };

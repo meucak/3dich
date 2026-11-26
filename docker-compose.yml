@@ -9,11 +9,17 @@ services:
       - "8099:8099"
     mem_limit: 256m
     cpus: 1.5
+    networks:
+      - threedich_priv
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - PORT=8099
       - NODE_ENV=production
       - DOCS_DIR=/app/docs
       - LIBRARY_DIRS=SolidCraft=/library/solidcraft
+      - AGY_KASA_UPSTREAM=http://host.docker.internal:8766
+      - AGY_TOSHI_UPSTREAM=http://100.79.246.19:8767
     volumes:
       - ./docs:/app/docs:ro
       - ./server:/app/server:ro
@@ -23,3 +29,11 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
+
+networks:
+  threedich_priv:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.89.99.0/24
+          gateway: 10.89.99.1

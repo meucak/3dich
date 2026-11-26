@@ -1,5 +1,5 @@
 // 3dich — Lightweight Offline-First Service Worker (PWA)
-const CACHE_NAME = '3dich-v1.0.0';
+const CACHE_NAME = '3dich-v1.1.0';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS = [
   './favicon.svg',
   './manifest.webmanifest',
   './js/app.js',
+  './js/printers_db.js',
   './js/catalog.js',
   './js/physics_engine.js',
   './js/math3d.js',

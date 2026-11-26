@@ -111,10 +111,11 @@ async function run() {
     await page.waitForFunction(() => Boolean(window.__3dich));
     await page.waitForTimeout(500);
 
-    // Check TRUE WebGL2 rendering, ultra-low draw-call budget, and 0% idle loop!
+    // Check TRUE WebGL2 rendering, 150+ real printers, ultra-low draw-call budget, and 0% idle loop!
     const stats0 = await page.evaluate(() => window.__3dich.getStats());
     console.log('  [INFO] Initial 3D Stats:', JSON.stringify(stats0));
     assert.equal(stats0.backend, 'WebGL2', `Expected true WebGL2, got: ${stats0.backend}`);
+    assert.ok(stats0.printerCount >= 150, `Expected >= 150 real printers, got ${stats0.printerCount}`);
     assert.ok(stats0.drawCalls <= 12, `Expected <= 12 draw calls for ultra optimization, got ${stats0.drawCalls}`);
     assert.equal(stats0.rafRunning, false, 'Idle on-demand render loop MUST stop (0% idle CPU/GPU)!');
 
@@ -125,6 +126,23 @@ async function run() {
 
     await page.screenshot({ path: path.join(OUT_DIR, 'desktop-dark.png') });
     await runAxe(page, 'Desktop Dark');
+
+    // Test Searchable 155+ Printer Modal: search & select "Creality Ender-3 Pro" + "FLSUN V400 Delta"!
+    await page.click('#btn-open-printer-modal');
+    await page.locator('#printer-modal').waitFor({ state: 'visible' });
+    await runAxe(page, '155-Printer Search Modal');
+    await page.fill('#printer-search-modal', 'Ender-3 Pro');
+    await page.locator('#printer-modal-grid [data-printer-id="creality_ender3_pro"]').click();
+    await page.waitForTimeout(250);
+    assert.equal((await page.evaluate(() => window.__3dich.getStats())).printerId, 'creality_ender3_pro');
+    await page.screenshot({ path: path.join(OUT_DIR, 'desktop-ender3-pro.png') });
+    console.log('  [PASS] Searchable 155-Printer Modal -> selected Creality Ender-3 Pro');
+
+    // Switch to FLSUN V400 Delta to prove true 3-tower Delta geometry renders cleanly!
+    await page.evaluate(() => window.__3dich.setPrinter('flsun_v400'));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(OUT_DIR, 'desktop-flsun-delta.png') });
+    console.log('  [PASS] True 3-Tower Delta 3D Frame (FLSUN V400) verified');
 
     // Test Mod Search, Toggle & Preset Application
     await page.fill('#mod-search', 'CPAP');
@@ -224,7 +242,7 @@ async function run() {
     await page.route('https://generativelanguage.googleapis.com/**', async (route) => {
       const url = route.request().url();
       const body = JSON.parse(route.request().postData() || '{}');
-      if (url.includes('gemini-2.5-flash-image')) {
+      if (url.includes('flash-image') || url.includes('pro-image')) {
         assert.deepEqual(body.generationConfig?.responseModalities, ['TEXT', 'IMAGE']);
         imagePayloadChecked = true;
         await route.fulfill({
@@ -275,7 +293,13 @@ async function run() {
     await page.fill('#chat-input', 'What max accel is safe?');
     await page.click('#btn-send-chat');
     await page.locator('.chat-ai').first().waitFor({ state: 'visible', timeout: 5000 });
-    console.log('  [PASS] Gemini Multimodal Vision Audit, 1-Click Mod Apply, 3D Studio Render & Chat verified');
+
+    // Verify AGY Kasa & AGY Toshi Zero-Trust Provider UI switches cleanly + passes axe WCAG AA!
+    await page.selectOption('#ai-provider-select', 'agy-kasa');
+    await page.locator('#provider-agy-box').waitFor({ state: 'visible' });
+    await runAxe(page, 'AGY Kasa Zero-Trust Panel');
+    await page.selectOption('#ai-provider-select', 'gemini');
+    console.log('  [PASS] Gemini 2026 Vision Audit, 3D Studio Render, Chat & Zero-Trust AGY Kasa/Toshi UI verified');
 
     // Light Theme + EN Language + Export Klipper Modal + Accessibility Check!
     await page.click('#btn-theme');

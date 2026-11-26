@@ -184,8 +184,10 @@ export function buildPrinterGeometry(printer, activeModIds, appearance = {}) {
   const hx = ox * 0.5;
   const hz = oz * 0.5;
   const isCube = printer.frameType === 'cube';
-  const bedY = isCube ? oy * 0.36 : 95;
-  const gantryY = bedY + 52;
+  const isDelta = printer.frameType === 'delta';
+  const isCantilever = printer.frameType === 'cantilever';
+  const bedY = isCube ? oy * 0.36 : isDelta ? 88 : 95;
+  const gantryY = bedY + (isDelta ? 82 : 52);
   const baseLift = mods.has('mot-vibration-paver') ? 38 : 0;
 
   // ================= BASE VIBRATION PAVER & FEET =================
@@ -249,8 +251,43 @@ export function buildPrinterGeometry(printer, activeModIds, appearance = {}) {
       staticB.addBox(sx * (hx - e - 24), fYTop - 32, -hz + e + 24, 42, 46, 42, C.darkMetal, 0.55, 0.42, 0.25);
       staticB.addBox(sx * (hx - e - 24), fYTop - 10, -hz + e + 24, 46, 8, 46, C.accent, 0.25, 0.45, 0);
     }
+  } else if (isDelta) {
+    // True 3-Tower Delta Architecture (FLSUN V400 / T1 Pro / SR / Q5)
+    const R = Math.max(bx, bz) * 0.62;
+    // Lower hexagonal/cylindrical electronics base + upper crown ring
+    staticB.addCylinder(0, fY0 + 36, 0, R + 18, R + 22, 64, 6, 'y', C.frame, frameMetal, frameRough, 0.08);
+    staticB.addCylinder(0, fYTop - 22, 0, R + 14, R + 14, 42, 6, 'y', C.frame, frameMetal, frameRough, 0);
+    staticB.addCylinder(0, fYTop - 2, 0, R + 16, R + 16, 8, 6, 'y', C.accent, 0.25, 0.42, 0);
+    // 3 Vertical 120-degree Aluminum Towers + Linear Rails + Stepper Carriages + 6 Parallel Delta Pushrods!
+    for (let i = 0; i < 3; i++) {
+      const ang = (i * 120 - 90) * (Math.PI / 180);
+      const tx = Math.cos(ang) * R;
+      const tz = Math.sin(ang) * R;
+      const yaw = -((i * 120 - 90));
+      staticB.addRotatedBox(tx, (fY0 + fYTop) * 0.5, tz, e * 1.5, fYTop - fY0, e * 1.8, 0, yaw, 0, C.frame, frameMetal, frameRough, 0);
+      // Tower linear rail
+      const rx = Math.cos(ang) * (R - 14), rz = Math.sin(ang) * (R - 14);
+      staticB.addBox(rx, (fY0 + fYTop) * 0.5, rz, 10, fYTop - fY0 - 90, 10, C.steel, 0.92, 0.18, 0);
+      // Moving tower carriage (upper half)
+      const carY = gY + 135;
+      yB.addBox(rx, carY, rz, 28, 34, 28, C.accent, 0.25, 0.42, 0);
+      // Twin carbon-fiber parallel pushrods down to center effector!
+      const px = -Math.sin(ang) * 14, pz = Math.cos(ang) * 14;
+      thB.addTube([[rx + px, carY, rz + pz], [px * 0.85, gY + 18, pz * 0.85]], 3.2, 6, C.carbon, 0.15, 0.35, 0);
+      thB.addTube([[rx - px, carY, rz - pz], [-px * 0.85, gY + 18, -pz * 0.85]], 3.2, 6, C.carbon, 0.15, 0.35, 0);
+    }
+  } else if (isCantilever) {
+    // True Cantilever Architecture (Prusa MINI+ / Bambu A1 Mini / Kingroon KP3S)
+    staticB.addBox(0, fY0 + e * 0.7, 0, ox * 0.78, e * 1.2, oz * 0.92, C.frame, frameMetal, frameRough, 0);
+    staticB.addBox(0, fY0 + e * 1.4, 0, e * 1.6, e, oz * 0.88, C.darkMetal, 0.6, 0.4, 0.1);
+    // Single robust left Z vertical tower + Z leadscrew
+    const zX = -hx + 34;
+    staticB.addBox(zX, (fY0 + fYTop) * 0.5, -16, e * 2.2, fYTop - fY0, e * 2.4, C.frame, frameMetal, frameRough, 0);
+    staticB.addBox(zX, fYTop - 6, -16, e * 2.5, 12, e * 2.7, C.accent, 0.25, 0.42, 0);
+    staticB.addCylinder(zX + 24, (fY0 + fYTop) * 0.5, -16, 4, 4, fYTop - fY0 - 20, 8, 'y', C.steel, 0.9, 0.2, 0);
+    staticB.addBox(zX, fY0 + 30, -16, 44, 44, 44, C.darkMetal, 0.55, 0.42, 0.18);
   } else {
-    // Bed-Slinger (Ender-3 / Prusa i3 Gantry Architecture)
+    // Bed-Slinger (Ender-3 / Ender-3 Pro / Prusa i3 / CR-10 Gantry Architecture)
     // Base H-frame
     for (const sx of [-1, 1]) {
       staticB.addBox(sx * (hx - 24), fY0 + e * 0.5, 0, e * 1.6, e, oz, C.frame, frameMetal, frameRough, 0);
@@ -278,29 +315,35 @@ export function buildPrinterGeometry(printer, activeModIds, appearance = {}) {
   }
 
   // ================= BUILD PLATE / HEATED BED =================
-  // Moves with Y on Bed-Slinger, or Z on CoreXY
-  const bedBatch = printer.kinematics === 'bedslinger' ? yB : zB;
+  // Moves with Y on Bed-Slinger, or Z on CoreXY, static circular bed on Delta
+  const bedBatch = printer.kinematics === 'bedslinger' ? yB : isDelta ? staticB : zB;
   const bedPlateCol = mods.has('bed-pei-cryogrip') ? C.cryo : C.pei;
   const bedThick = mods.has('bed-cast-alu-mic6') ? 10 : 5;
-  // Aluminum heatbed sub-plate
-  bedBatch.addBox(0, bY - bedThick * 0.5 - 2, 0, bx + 12, bedThick, bz + 12, C.alu, 0.85, 0.25, 0.72);
-  // Magnetic spring steel PEI/CryoGrip sheet
-  bedBatch.addBox(0, bY + 1, 0, bx, 2.5, bz, bedPlateCol, 0.32, 0.55, 0.82);
-  // Front pull tab
-  bedBatch.addBox(0, bY + 1, bz * 0.5 + 8, 56, 2.5, 16, bedPlateCol, 0.32, 0.55, 0.65);
-  // Under-bed carriage frame + corner mounts
-  bedBatch.addBox(0, bY - 14, 0, bx * 0.76, 6, bz * 0.76, C.darkMetal, 0.6, 0.4, 0.25);
-  const mountCol = mods.has('mot-silicon-bed-mounts') ? C.silicone : C.steel;
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      bedBatch.addCylinder(sx * bx * 0.36, bY - 9, sz * bz * 0.36, 6, 6, 12, 8, 'y', mountCol, 0.15, 0.6, 0.3);
+  if (isDelta) {
+    const rad = bx * 0.5;
+    bedBatch.addCylinder(0, bY - bedThick * 0.5 - 2, 0, rad + 6, rad + 6, bedThick, 24, 'y', C.alu, 0.85, 0.25, 0.72);
+    bedBatch.addCylinder(0, bY + 1, 0, rad, rad, 2.5, 24, 'y', bedPlateCol, 0.32, 0.55, 0.82);
+  } else {
+    // Aluminum heatbed sub-plate
+    bedBatch.addBox(0, bY - bedThick * 0.5 - 2, 0, bx + 12, bedThick, bz + 12, C.alu, 0.85, 0.25, 0.72);
+    // Magnetic spring steel PEI/CryoGrip sheet
+    bedBatch.addBox(0, bY + 1, 0, bx, 2.5, bz, bedPlateCol, 0.32, 0.55, 0.82);
+    // Front pull tab
+    bedBatch.addBox(0, bY + 1, bz * 0.5 + 8, 56, 2.5, 16, bedPlateCol, 0.32, 0.55, 0.65);
+    // Under-bed carriage frame + corner mounts
+    bedBatch.addBox(0, bY - 14, 0, bx * 0.76, 6, bz * 0.76, C.darkMetal, 0.6, 0.4, 0.25);
+    const mountCol = mods.has('mot-silicon-bed-mounts') ? C.silicone : C.steel;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        bedBatch.addCylinder(sx * bx * 0.36, bY - 9, sz * bz * 0.36, 6, 6, 12, 8, 'y', mountCol, 0.15, 0.6, 0.3);
+      }
     }
-  }
-  // Subtle translucent build volume wireframe guides (corner vertical pillars)
-  const bvH = Math.min(printer.buildVolume.z * 0.55, fYTop - bY - 40);
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      transB.addBox(sx * bx * 0.49, bY + bvH * 0.5, sz * bz * 0.49, 1.8, bvH, 1.8, C.ledCyan, 0.1, 0.2, 0.0);
+    // Subtle translucent build volume wireframe guides (corner vertical pillars)
+    const bvH = Math.min(printer.buildVolume.z * 0.55, fYTop - bY - 40);
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        transB.addBox(sx * bx * 0.49, bY + bvH * 0.5, sz * bz * 0.49, 1.8, bvH, 1.8, C.ledCyan, 0.1, 0.2, 0.0);
+      }
     }
   }
 
@@ -309,9 +352,11 @@ export function buildPrinterGeometry(printer, activeModIds, appearance = {}) {
   const xBeamCol = mods.has('mot-carbon-x-beam') ? C.carbon : C.frame;
   const xBeamMetal = mods.has('mot-carbon-x-beam') ? 0.15 : frameMetal;
   const xBeamRough = mods.has('mot-carbon-x-beam') ? 0.28 : frameRough;
-  const gantryZ = isCube ? 0 : -18;
-  // X Gantry Beam
-  gantryBatch.addBox(0, gY + 18, gantryZ, ox - 2.6 * e, e, e, xBeamCol, xBeamMetal, xBeamRough, 0.05);
+  const gantryZ = isCube || isDelta ? 0 : -18;
+  // X Gantry Beam (skipped on Delta, which uses 3 parallel arm pairs)
+  if (!isDelta) {
+    gantryBatch.addBox(0, gY + 18, gantryZ, ox - 2.6 * e, e, e, xBeamCol, xBeamMetal, xBeamRough, 0.05);
+  }
   // CoreXY Side Y-Rails + XY Joints
   if (isCube) {
     for (const sx of [-1, 1]) {
@@ -322,11 +367,11 @@ export function buildPrinterGeometry(printer, activeModIds, appearance = {}) {
     }
   }
   // MGN12H Linear Rails upgrade visual
-  if (mods.has('mot-mgn12-linear-rails') || printer.stock.hasLinearRails) {
+  if (!isDelta && (mods.has('mot-mgn12-linear-rails') || printer.stock.hasLinearRails)) {
     gantryBatch.addBox(0, gY + 18, gantryZ + e * 0.5 + 4, ox - 3.2 * e, 12, 8, C.steel, 0.94, 0.16, 0);
     thB.addBox(0, gY + 18, gantryZ + e * 0.5 + 8, 44, 26, 12, C.green, 0.65, 0.30, 0);
   }
-  if (mods.has('mot-mgn12-linear-rails') && !isCube) {
+  if (!isDelta && mods.has('mot-mgn12-linear-rails') && !isCube) {
     // Dual Y linear rails under bed on Bed-Slinger!
     for (const sx of [-1, 1]) {
       staticB.addBox(sx * 64, fY0 + 26, 0, 12, 8, oz - 24, C.steel, 0.94, 0.16, 0);
@@ -621,8 +666,15 @@ export function buildPrinterGeometry(printer, activeModIds, appearance = {}) {
     staticB.addRotatedBox(-hx + 44, fYTop - 46, hz - 44, 12, 12, 10, 22, 42, 0, C.ledCyan, 0.7, 0.1, 0);
   }
   if (mods.has('qol-rgb-neopixel')) {
-    for (const sz of [-1, 1]) {
-      staticB.addBox(0, fYTop - e - 4, sz * (hz - e - 12), ox - 3 * e, 8, 12, C.ledWarm, 0.0, 0.05, 0.0);
+    if (isCube) {
+      for (const sz of [-1, 1]) {
+        staticB.addBox(0, fYTop - e - 4, sz * (hz - e - 12), ox - 3 * e, 8, 12, C.ledWarm, 0.0, 0.05, 0.0);
+      }
+    } else if (isDelta) {
+      const rLed = Math.max(bx, bz) * 0.45;
+      staticB.addCylinder(0, fYTop - 44, 0, rLed, rLed, 6, 12, 'y', C.ledWarm, 0.0, 0.05, 0.0);
+    } else {
+      staticB.addBox(0, fYTop - e - 4, -18, ox - 50, 7, 12, C.ledWarm, 0.0, 0.05, 0.0);
     }
   }
   if (mods.has('qol-smoke-relay')) {

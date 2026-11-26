@@ -48,8 +48,15 @@ async function run() {
     await test('POST /api/gemini/proxy rejects unknown models (400) and missing key (401)', async () => {
       const badModel = await fetch(`${base}/api/gemini/proxy?model=evil-model`, { method: 'POST', body: '{}' });
       assert.equal(badModel.status, 400);
-      const noKey = await fetch(`${base}/api/gemini/proxy?model=gemini-2.5-flash`, { method: 'POST', body: '{}' });
+      const noKey = await fetch(`${base}/api/gemini/proxy?model=gemini-3.8-flash`, { method: 'POST', body: '{}' });
       assert.equal(noKey.status, 401);
+    });
+
+    await test('Zero-Trust /api/agy/{kasa,toshi} strictly rejects requests without X-3dich-Token (401)', async () => {
+      const r1 = await fetch(`${base}/api/agy/kasa/health`);
+      assert.equal(r1.status, 401);
+      const r2 = await fetch(`${base}/api/agy/toshi/complete`, { method: 'POST', body: '{"prompt":"test"}' });
+      assert.equal(r2.status, 401);
     });
   } finally {
     srv.close();

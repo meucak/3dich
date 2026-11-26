@@ -20,8 +20,10 @@
         <span class="brand-badge">STUDIO</span>
       </div>
 
-      <label for="quick-printer-select" class="sr-only">Base 3D Printer</label>
-      <select id="quick-printer-select" class="top-select" aria-label="Base 3D Printer"></select>
+      <button type="button" id="btn-open-printer-modal" class="top-printer-btn" aria-label="Choose Base 3D Printer">
+        <span id="lbl-active-printer">Voron 2.4 R2 (300mm)</span>
+        <span class="caret" aria-hidden="true">▾</span>
+      </button>
 
       <div class="pill-group cam-group" role="group" aria-label="Camera Presets">
         <button type="button" class="pill-btn" data-cam="iso" data-i18n="camIso" title="Key 1">İzo</button>
@@ -101,11 +103,17 @@
         <div id="mod-list" class="mod-list" tabindex="0"></div>
       </section>
 
-      <!-- TAB 2: 7 Printers, 6 Curated Presets, Frame Finishes -->
+      <!-- TAB 2: 155+ Real Printers, 6 Curated Presets, Frame Finishes -->
       <section id="panel-printers" class="dock-panel" role="tabpanel" hidden>
         <div class="panel-scroll" tabindex="0">
-          <h2 class="section-heading" data-i18n="basePlatform">Baz 3D Yazıcı Platformu</h2>
-          <div id="printer-list" class="stack-list"></div>
+          <div class="row-between">
+            <h2 class="section-heading" data-i18n="basePlatform">Baz 3D Yazıcı Platformu</h2>
+            <span id="printer-count-badge" class="badge mono">155</span>
+          </div>
+          <label for="printer-search-dock" class="sr-only">Search Printers</label>
+          <input type="search" id="printer-search-dock" class="input" placeholder="155 yazıcı ara (Ender-3 Pro, CR-10, Bambu...)" autocomplete="off" />
+          <div id="printer-vendor-chips" class="chip-strip" role="group" aria-label="Printer Brands"></div>
+          <div id="printer-list" class="stack-list printer-list-box" tabindex="0"></div>
 
           <div id="custom-dims-card" class="card" hidden>
             <h3 class="card-title" data-i18n="customDimensions">Özel Şasi Ölçüleri (mm)</h3>
@@ -412,23 +420,58 @@
       <!-- RIGHT TAB 3: Gemini AI Vision Evaluation + 3D Concept Image Studio + Engineer Chat -->
       <section id="panel-gemini" class="dock-panel" role="tabpanel" hidden>
         <div class="panel-scroll" tabindex="0">
-          <!-- Gemini API Config Card -->
+          <!-- AI Provider & Credentials Config Card (Gemini 2026 / AGY Kasa / AGY Toshi) -->
           <div class="card">
-            <label for="gemini-api-key" class="field-label" data-i18n="apiKeyLabel">Gemini API Anahtarı (Tarayıcıda Kalır)</label>
-            <div class="row-gap">
-              <input type="password" id="gemini-api-key" class="input mono" placeholder="AIzaSy..." autocomplete="off" />
-              <button type="button" id="btn-save-key" class="btn btn-primary btn-sm" data-i18n="btnSaveKey">Kaydet</button>
-              <button type="button" id="btn-clear-key" class="btn btn-secondary btn-sm" data-i18n="btnClearKey">Temizle</button>
+            <label for="ai-provider-select" class="field-label" data-i18n="providerLabel">AI Sağlayıcı Motoru</label>
+            <select id="ai-provider-select" class="input" style="margin-bottom:10px"></select>
+
+            <!-- Provider A: Google Gemini API (Latest 2026 Models + Live ListModels) -->
+            <div id="provider-gemini-box">
+              <label for="gemini-api-key" class="field-label" data-i18n="apiKeyLabel">Gemini API Anahtarı (Tarayıcıda Kalır)</label>
+              <div class="row-gap">
+                <input type="password" id="gemini-api-key" class="input mono" placeholder="AIzaSy..." autocomplete="off" />
+                <button type="button" id="btn-save-key" class="btn btn-primary btn-sm" data-i18n="btnSaveKey">Kaydet</button>
+                <button type="button" id="btn-clear-key" class="btn btn-secondary btn-sm" data-i18n="btnClearKey">Temizle</button>
+              </div>
+              <div class="grid-2" style="margin-top:8px">
+                <div>
+                  <label for="gemini-text-model" class="field-label" data-i18n="textModelLabel">Analiz Modeli</label>
+                  <select id="gemini-text-model" class="input"></select>
+                </div>
+                <div>
+                  <label for="gemini-image-model" class="field-label" data-i18n="imageModelLabel">3D Görsel Modeli</label>
+                  <select id="gemini-image-model" class="input"></select>
+                </div>
+              </div>
+              <div class="row-between" style="margin-top:8px">
+                <button type="button" id="btn-refresh-models" class="btn btn-secondary btn-sm" data-i18n="btnRefreshModels">Canlı Modelleri Çek</button>
+                <span id="models-sync-status" class="small-muted mono"></span>
+              </div>
             </div>
-            <div class="grid-2" style="margin-top:8px">
-              <div>
-                <label for="gemini-text-model" class="field-label" data-i18n="textModelLabel">Analiz Modeli</label>
-                <select id="gemini-text-model" class="input"></select>
+
+            <!-- Provider B/C: Zero-Trust Hardened AGY Kasa / AGY Toshi Bridge -->
+            <div id="provider-agy-box" hidden>
+              <label for="agy-token-input" class="field-label" data-i18n="agyTokenLabel">Zero-Trust AGY Köprü Anahtarı (256-bit)</label>
+              <div class="row-gap">
+                <input type="password" id="agy-token-input" class="input mono" placeholder="3dich token..." autocomplete="off" />
+                <button type="button" id="btn-save-agy-token" class="btn btn-primary btn-sm" data-i18n="btnSaveKey">Kaydet</button>
+                <button type="button" id="btn-clear-agy-token" class="btn btn-secondary btn-sm" data-i18n="btnClearKey">Temizle</button>
               </div>
-              <div>
-                <label for="gemini-image-model" class="field-label" data-i18n="imageModelLabel">3D Görsel Modeli</label>
-                <select id="gemini-image-model" class="input"></select>
+              <div class="grid-2" style="margin-top:8px">
+                <div>
+                  <label for="agy-model-select" class="field-label" data-i18n="agyModelLabel">Antigravity (AGY) Modeli</label>
+                  <select id="agy-model-select" class="input"></select>
+                </div>
+                <div>
+                  <label for="agy-url-input" class="field-label">Bridge URL (Opsiyonel)</label>
+                  <input type="text" id="agy-url-input" class="input mono" placeholder="Oto (/api/agy/...)" />
+                </div>
               </div>
+              <div class="row-between" style="margin-top:8px">
+                <button type="button" id="btn-test-agy" class="btn btn-secondary btn-sm" data-i18n="btnTestBridge">Köprüyü Test Et</button>
+                <span id="agy-bridge-status" class="small-muted mono"></span>
+              </div>
+              <p class="security-note" data-i18n="agySecurityNote">Siber Güvenlik Koruması: Sadece Loopback/Tailscale IP + 256-bit Bearer Token + Sıkı Origin CORS + 5 hatalı denemede 15dk kilit + Sandbox mod.</p>
             </div>
           </div>
 
@@ -483,6 +526,22 @@
     <button type="button" class="mnav-btn" data-mobile-view="telemetry" data-i18n="navStats">Telemetri</button>
     <button type="button" class="mnav-btn" data-mobile-view="gemini" data-i18n="navAi">Gemini AI</button>
   </nav>
+
+  <!-- Searchable 155+ Real 3D Printer Catalog Modal -->
+  <div id="printer-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="printer-modal-title" hidden>
+    <div class="modal-sheet modal-wide">
+      <div class="row-between modal-head">
+        <h2 id="printer-modal-title" data-i18n="modalPrinterTitle">155+ Gerçek 3D Yazıcı Kataloğu</h2>
+        <button type="button" id="btn-close-printer-modal" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="search-row" style="margin-top:10px">
+        <label for="printer-search-modal" class="sr-only">Search 155 Printers</label>
+        <input type="search" id="printer-search-modal" class="input" placeholder="Ender-3 Pro, Ender-3, CR-10, Anet A8, Bambu, Voron, Delta..." autocomplete="off" />
+      </div>
+      <div id="printer-modal-vendors" class="chip-strip" style="margin:8px 0" role="group" aria-label="Filter by Brand"></div>
+      <div id="printer-modal-grid" class="printer-modal-grid" tabindex="0"></div>
+    </div>
+  </div>
 
   <!-- Export & Klipper Config Modal -->
   <div id="export-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="export-modal-title" hidden>

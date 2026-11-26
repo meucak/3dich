@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   PRINTER_PLATFORMS,
+  PRINTER_BY_ID,
   MOD_CATALOG,
   BUILD_PRESETS,
   MOUNT_HARDPOINTS,
@@ -22,20 +23,26 @@ function test(name, fn) {
 
 console.log('=== 3dich Physics & Catalog Unit Tests ===');
 
-test('Catalog contains >= 55 engineered mods across 10 categories and 7 printers', () => {
+test('Catalog contains >= 55 engineered mods across 10 categories and >= 150 real printers', () => {
   assert.ok(MOD_CATALOG.length >= 55, `Expected >= 55 mods, got ${MOD_CATALOG.length}`);
-  assert.equal(PRINTER_PLATFORMS.length, 7);
+  assert.ok(PRINTER_PLATFORMS.length >= 150, `Expected >= 150 printers, got ${PRINTER_PLATFORMS.length}`);
   assert.equal(BUILD_PRESETS.length, 6);
   assert.equal(MOUNT_HARDPOINTS.length, 12);
   const ids = new Set(MOD_CATALOG.map((m) => m.id));
   assert.equal(ids.size, MOD_CATALOG.length, 'Mod IDs must be unique');
+  const pIds = new Set(PRINTER_PLATFORMS.map((p) => p.id));
+  assert.equal(pIds.size, PRINTER_PLATFORMS.length, 'Printer IDs must be unique');
+  // Verify iconic classics & modern machines exist
+  for (const mustHave of ['creality_ender3', 'creality_ender3_pro', 'creality_cr10', 'anet_a8', 'prusa_mk4s', 'bambu_x1c', 'voron_24_300', 'flsun_v400', 'prusa_mini', 'custom_scratch']) {
+    assert.ok(pIds.has(mustHave), `Missing required printer: ${mustHave}`);
+  }
 });
 
-test('All curated presets reference valid printers and valid mod IDs', () => {
+test('All curated presets reference valid printers (or aliases) and valid mod IDs', () => {
   const modIds = new Set(MOD_CATALOG.map((m) => m.id));
-  const printerIds = new Set(PRINTER_PLATFORMS.map((p) => p.id));
   for (const preset of BUILD_PRESETS) {
-    assert.ok(printerIds.has(preset.printerId), `Invalid printerId in ${preset.id}`);
+    const res = evaluatePrinterBuild(preset.printerId, preset.mods, []);
+    assert.ok(res.current.engineeringScore >= 20, `Preset ${preset.id} must evaluate cleanly`);
     for (const m of preset.mods) {
       assert.ok(modIds.has(m), `Invalid mod ${m} in preset ${preset.id}`);
     }
@@ -140,15 +147,21 @@ test('Hardpoint poses resolve cleanly for every printer and every hardpoint', ()
   }
 });
 
-test('Klipper printer.cfg generator includes kinematics, input_shaper, and active mod snippets', () => {
-  const printer = PRINTER_PLATFORMS[0];
+test('Klipper printer.cfg generator includes kinematics (corexy/cartesian/delta), input_shaper, and active mod snippets', () => {
+  const voron = PRINTER_BY_ID.get('voron_24_300');
   const mods = ['hotend-rapido-uhf', 'probe-beacon-eddy', 'cool-cpap-turbo'];
-  const evalRes = evaluatePrinterBuild(printer, mods, []);
-  const cfg = generateKlipperConfig(printer, mods, evalRes);
+  const evalRes = evaluatePrinterBuild(voron, mods, []);
+  const cfg = generateKlipperConfig(voron, mods, evalRes);
   assert.ok(cfg.includes('kinematics: corexy'));
   assert.ok(cfg.includes('[input_shaper]'));
   assert.ok(cfg.includes('[beacon]'));
   assert.ok(cfg.includes('Rapido 2 UHF'));
+
+  const ender = PRINTER_BY_ID.get('creality_ender3_pro');
+  assert.ok(generateKlipperConfig(ender, [], evaluatePrinterBuild(ender, [], [])).includes('kinematics: cartesian'));
+
+  const delta = PRINTER_BY_ID.get('flsun_v400');
+  assert.ok(generateKlipperConfig(delta, [], evaluatePrinterBuild(delta, [], [])).includes('kinematics: delta'));
   assert.equal(formatDuration(754), '12m 34s');
 });
 

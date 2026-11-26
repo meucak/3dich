@@ -1,6 +1,16 @@
-// 3dich — Comprehensive 3D Printer Platforms, 59-Mod Engineering Catalog,
+// 3dich — Comprehensive 155 Real-World 3D Printer Platforms, 59-Mod Engineering Catalog,
 // Materials, Hardpoints, Color Finishes & Curated Build Presets.
 // All physical deltas are engineering-grounded for live kinematic/thermal/acoustic simulation.
+
+import {
+  ALL_PRINTER_PLATFORMS,
+  PRINTER_VENDORS,
+  MAIN_VENDOR_SET,
+  PRINTER_ID_ALIASES,
+} from './printers_db.js';
+
+export { PRINTER_VENDORS, MAIN_VENDOR_SET, PRINTER_ID_ALIASES };
+export const PRINTER_PLATFORMS = ALL_PRINTER_PLATFORMS;
 
 export const MATERIALS = [
   { id: 'pla',   name: 'PLA+',          density: 1.24, maxTemp: 55,  costPerKg: 20, color: '#e67e22', printable: true,  stiffness: 3.5 },
@@ -34,282 +44,6 @@ export const ACCENT_COLORS = [
   { id: 'amber-gold',    name: { tr: 'Kehribar Sarı',   en: 'Amber Gold' },      hex: '#e09f24' },
   { id: 'alpine-white',  name: { tr: 'Alp Beyazı',      en: 'Alpine White' },    hex: '#dde3ea' },
   { id: 'stealth-gray',  name: { tr: 'Gizli Grafit',    en: 'Stealth Graphite' },hex: '#4e5866' },
-];
-
-export const PRINTER_PLATFORMS = [
-  {
-    id: 'voron-24',
-    name: 'Voron 2.4 R2 (300)',
-    kinematics: 'corexy',
-    frameType: 'cube',
-    extrusionMm: 20,
-    buildVolume: { x: 300, y: 300, z: 300 },
-    outerSize: { x: 460, y: 460, z: 530 },
-    stock: {
-      xMassG: 440,
-      yMassG: 760,
-      zMassG: 1450,
-      frameMassG: 11200,
-      frameStiffness: 1.35,
-      baseFreqX: 54,
-      baseFreqY: 44,
-      maxFlowMm3s: 22,
-      maxNozzleC: 300,
-      maxBedC: 115,
-      chamberC: 48,
-      coolingCfm: 7.5,
-      coolingStaticPa: 220,
-      stepperVoltage: 24,
-      extruderType: 'direct',
-      hasKlipper: true,
-      hasInputShaper: true,
-      hasLinearRails: true,
-      enclosed: true,
-      psuWatts: 350,
-      baseDrawWatts: 155,
-      bedDrawWatts: 500, // AC SSR bed
-      noiseDba: 54,
-      baseCostUsd: 1150,
-    },
-    tagline: {
-      tr: 'Uçan gantry CoreXY • 300³ mm • Modlama efsanesi',
-      en: 'Flying-gantry CoreXY • 300³ mm • Ultimate modding platform',
-    },
-  },
-  {
-    id: 'ender-3',
-    name: 'Creality Ender-3 V2 / S1',
-    kinematics: 'bedslinger',
-    frameType: 'gantry',
-    extrusionMm: 20,
-    buildVolume: { x: 220, y: 220, z: 250 },
-    outerSize: { x: 400, y: 420, z: 470 },
-    stock: {
-      xMassG: 390,
-      yMassG: 1180, // heavy moving heated bed!
-      zMassG: 1100,
-      frameMassG: 6200,
-      frameStiffness: 0.78,
-      baseFreqX: 38,
-      baseFreqY: 24, // typical bed slinger Y resonance
-      maxFlowMm3s: 11,
-      maxNozzleC: 260,
-      maxBedC: 100,
-      chamberC: 24,
-      coolingCfm: 3.4,
-      coolingStaticPa: 95,
-      stepperVoltage: 24,
-      extruderType: 'bowden',
-      hasKlipper: false,
-      hasInputShaper: false,
-      hasLinearRails: false,
-      enclosed: false,
-      psuWatts: 350,
-      baseDrawWatts: 195,
-      bedDrawWatts: 220,
-      noiseDba: 56,
-      baseCostUsd: 220,
-    },
-    tagline: {
-      tr: 'Klasik V-Slot Bed-Slinger • 220×220×250 mm • Sonsuz yükseltme potansiyeli',
-      en: 'Classic V-Slot Bed-Slinger • 220×220×250 mm • Infinite upgrade canvas',
-    },
-  },
-  {
-    id: 'prusa-mk4',
-    name: 'Prusa MK4S / i3',
-    kinematics: 'bedslinger',
-    frameType: 'gantry',
-    extrusionMm: 30,
-    buildVolume: { x: 250, y: 210, z: 220 },
-    outerSize: { x: 420, y: 420, z: 440 },
-    stock: {
-      xMassG: 360,
-      yMassG: 940,
-      zMassG: 1050,
-      frameMassG: 7000,
-      frameStiffness: 0.96,
-      baseFreqX: 48,
-      baseFreqY: 34,
-      maxFlowMm3s: 21,
-      maxNozzleC: 290,
-      maxBedC: 120,
-      chamberC: 25,
-      coolingCfm: 8.8,
-      coolingStaticPa: 260,
-      stepperVoltage: 24,
-      extruderType: 'direct',
-      hasKlipper: false,
-      hasInputShaper: true,
-      hasLinearRails: false, // precision smooth rods
-      enclosed: false,
-      psuWatts: 240,
-      baseDrawWatts: 180,
-      bedDrawWatts: 180,
-      noiseDba: 47,
-      baseCostUsd: 799,
-    },
-    tagline: {
-      tr: 'Hassas i3 Bed-Slinger • 250×210×220 mm • Nextruder & Loadcell',
-      en: 'Precision i3 Bed-Slinger • 250×210×220 mm • Nextruder & Loadcell',
-    },
-  },
-  {
-    id: 'bambu-corexy',
-    name: 'Enclosed CoreXY (X1C / P1S Class)',
-    kinematics: 'corexy',
-    frameType: 'cube',
-    extrusionMm: 20,
-    buildVolume: { x: 256, y: 256, z: 256 },
-    outerSize: { x: 390, y: 390, z: 458 },
-    stock: {
-      xMassG: 295, // carbon rods
-      yMassG: 560,
-      zMassG: 1200,
-      frameMassG: 12500,
-      frameStiffness: 1.48,
-      baseFreqX: 66,
-      baseFreqY: 52,
-      maxFlowMm3s: 24,
-      maxNozzleC: 300,
-      maxBedC: 110,
-      chamberC: 45,
-      coolingCfm: 9.2,
-      coolingStaticPa: 280,
-      stepperVoltage: 24,
-      extruderType: 'direct',
-      hasKlipper: true,
-      hasInputShaper: true,
-      hasLinearRails: true,
-      enclosed: true,
-      psuWatts: 350,
-      baseDrawWatts: 230,
-      bedDrawWatts: 320,
-      noiseDba: 58,
-      baseCostUsd: 950,
-    },
-    tagline: {
-      tr: 'Kapalı Yüksek Hızlı CoreXY • 256³ mm • Karbon X ekseni',
-      en: 'Enclosed High-Speed CoreXY • 256³ mm • Carbon X-axis',
-    },
-  },
-  {
-    id: 'ratrig-vc4',
-    name: 'RatRig V-Core 4 (400)',
-    kinematics: 'corexy',
-    frameType: 'cube',
-    extrusionMm: 30,
-    buildVolume: { x: 400, y: 400, z: 400 },
-    outerSize: { x: 580, y: 580, z: 620 },
-    stock: {
-      xMassG: 480,
-      yMassG: 960,
-      zMassG: 2200,
-      frameMassG: 19500,
-      frameStiffness: 1.65,
-      baseFreqX: 50,
-      baseFreqY: 40,
-      maxFlowMm3s: 28,
-      maxNozzleC: 310,
-      maxBedC: 120,
-      chamberC: 42,
-      coolingCfm: 8.5,
-      coolingStaticPa: 240,
-      stepperVoltage: 24,
-      extruderType: 'direct',
-      hasKlipper: true,
-      hasInputShaper: true,
-      hasLinearRails: true,
-      enclosed: false,
-      psuWatts: 480,
-      baseDrawWatts: 280,
-      bedDrawWatts: 1000, // AC bed
-      noiseDba: 55,
-      baseCostUsd: 1650,
-    },
-    tagline: {
-      tr: '3030 Ağır Sanayi CoreXY • 400³ mm • Hibrit/IDEX hazır şasi',
-      en: '3030 Heavy Industrial CoreXY • 400³ mm • Hybrid/IDEX ready chassis',
-    },
-  },
-  {
-    id: 'voron-v0',
-    name: 'Voron V0.2 (120 Pocket)',
-    kinematics: 'corexy',
-    frameType: 'cube',
-    extrusionMm: 15,
-    buildVolume: { x: 120, y: 120, z: 120 },
-    outerSize: { x: 250, y: 250, z: 330 },
-    stock: {
-      xMassG: 210,
-      yMassG: 390,
-      zMassG: 520,
-      frameMassG: 3600,
-      frameStiffness: 1.55,
-      baseFreqX: 78,
-      baseFreqY: 66,
-      maxFlowMm3s: 19,
-      maxNozzleC: 300,
-      maxBedC: 110,
-      chamberC: 54,
-      coolingCfm: 5.5,
-      coolingStaticPa: 185,
-      stepperVoltage: 24,
-      extruderType: 'direct',
-      hasKlipper: true,
-      hasInputShaper: true,
-      hasLinearRails: true,
-      enclosed: true,
-      psuWatts: 150,
-      baseDrawWatts: 115,
-      bedDrawWatts: 100,
-      noiseDba: 50,
-      baseCostUsd: 520,
-    },
-    tagline: {
-      tr: 'Ultra Hızlı Cep CoreXY • 120³ mm • Tüy siklet hız canavarı',
-      en: 'Ultra-Fast Pocket CoreXY • 120³ mm • Featherweight speed rocket',
-    },
-  },
-  {
-    id: 'custom-scratch',
-    name: 'Custom Scratch-Build Lab',
-    kinematics: 'corexy',
-    frameType: 'cube',
-    extrusionMm: 20,
-    buildVolume: { x: 280, y: 280, z: 280 },
-    outerSize: { x: 430, y: 430, z: 490 },
-    stock: {
-      xMassG: 380,
-      yMassG: 700,
-      zMassG: 1200,
-      frameMassG: 9500,
-      frameStiffness: 1.25,
-      baseFreqX: 52,
-      baseFreqY: 42,
-      maxFlowMm3s: 18,
-      maxNozzleC: 285,
-      maxBedC: 110,
-      chamberC: 26,
-      coolingCfm: 6.0,
-      coolingStaticPa: 170,
-      stepperVoltage: 24,
-      extruderType: 'direct',
-      hasKlipper: true,
-      hasInputShaper: false,
-      hasLinearRails: true,
-      enclosed: false,
-      psuWatts: 350,
-      baseDrawWatts: 210,
-      bedDrawWatts: 350,
-      noiseDba: 53,
-      baseCostUsd: 680,
-    },
-    tagline: {
-      tr: 'Özel Proje Şasisi • Özel X/Y/Z hacim & Kinematik yapılandırılabilir',
-      en: 'Scratch-Build Chassis • Configurable X/Y/Z volume & Kinematics',
-    },
-  },
 ];
 
 // 10 Engineering Categories
@@ -1133,8 +867,17 @@ export const BUILD_PRESETS = [
 ];
 
 export const MOD_BY_ID = new Map(MOD_CATALOG.map((m) => [m.id, m]));
-export const PRINTER_BY_ID = new Map(PRINTER_PLATFORMS.map((p) => [p.id, p]));
+export const PRINTER_BY_ID = new Map();
+for (const p of PRINTER_PLATFORMS) PRINTER_BY_ID.set(p.id, p);
+for (const [alias, canonical] of Object.entries(PRINTER_ID_ALIASES)) {
+  const target = PRINTER_BY_ID.get(canonical);
+  if (target) PRINTER_BY_ID.set(alias, target);
+}
 export const MATERIAL_BY_ID = new Map(MATERIALS.map((m) => [m.id, m]));
+
+export function resolvePrinterId(id) {
+  return PRINTER_ID_ALIASES[id] || (PRINTER_BY_ID.has(id) ? id : 'voron_24_300');
+}
 
 // Compute world-space coordinates (in mm, printer base sits on Y=0, X centered at 0, Z centered at 0)
 // Note: Right-handed Y-up 3D viewport coordinates (X = left/right, Y = up, Z = front/back)
