@@ -101,6 +101,35 @@ try:
     bad_img = bridge.run_sandboxed_agy(prompt="hi", model="gemini-3.8-flash-high", image_data_url="data:image/png;base64,aGVsbG8=")
     check("Non-PNG/JPEG fake image payload rejected by magic header check", not bad_img["ok"] and "magic" in bad_img["error"].lower())
 
+    # CLI flag syntax regression: --disable-slash-commands & --sandbox before --print=<prompt> (never bare --print)
+    from unittest import mock
+
+    captured_cmds = []
+
+    def fake_run(cmd, **kwargs):
+        captured_cmds.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="OK", stderr="")
+
+    with mock.patch.object(bridge, "find_agy_bin", return_value="/usr/local/bin/agy"), mock.patch.object(
+        bridge.subprocess, "run", side_effect=fake_run
+    ):
+        for test_model in ("gemini-4-hydrogen-xhigh", "gemini-4-argon-high"):
+            res = bridge.run_sandboxed_agy(prompt="--leading-dash prompt test", model=test_model)
+            check(f"Sandboxed agy invocation succeeds for {test_model}", res["ok"] and res["model"] == test_model, str(res))
+
+    check(
+        "agy CLI uses attached --print=<prompt> after --disable-slash-commands and --sandbox",
+        len(captured_cmds) == 2
+        and all(
+            "--print" not in c
+            and c[1:5] == ["--disable-slash-commands", "--sandbox", "--model", m]
+            and c[5].startswith("--print=")
+            and "--leading-dash prompt test" in c[5]
+            for c, m in zip(captured_cmds, ("gemini-4-hydrogen-xhigh", "gemini-4-argon-high"))
+        ),
+        f"cmds={captured_cmds}",
+    )
+
     # 5-strike Brute-Force Lockout -> 6th request LOCKED (429) even with VALID token!
     for i in range(5):
         st_bad, _, _ = http_req(f"{base}/health", headers={"X-3dich-Token": f"wrong_guess_{i}"})

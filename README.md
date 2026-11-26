@@ -44,7 +44,7 @@ Live Web App (GitHub Pages): **https://meucak.github.io/3dich/**
 - **Zero-Trust Hardened `AGY Kasa` & `AGY Toshi` Bridges (`scripts/agy_secure_bridge.py`):**
   - Never binds `0.0.0.0` — strictly loopback + Tailscale WireGuard + micro-segmented `10.89.99.0/24` Docker subnet (public Internet and LAN Wi-Fi blocked with `403`).
   - 256-bit high-entropy Bearer token (`chmod 0600`, retrieved locally via `3dich token`, constant-time `hmac.compare_digest` verification on every endpoint including `/health`).
-  - Strict CORS Origin allowlist (never `*`), 5-strike 15-minute brute-force IP lockout, sliding-window rate limit, max-2 concurrency cap, PNG magic-byte verification, and sandboxed `--print --disable-slash-commands --sandbox` CLI execution inside an isolated `0700` temp directory.
+  - Strict CORS Origin allowlist (never `*`), 5-strike 15-minute brute-force IP lockout, sliding-window rate limit, max-2 concurrency cap, PNG magic-byte verification, and sandboxed `--disable-slash-commands --sandbox --print=<prompt>` CLI execution inside an isolated `0700` temp directory.
 
 ---
 

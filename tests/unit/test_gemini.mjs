@@ -54,11 +54,20 @@ async function run() {
     assert.ok(payload.contents[0].parts[0].text.includes('Voron 2.4'));
   });
 
-  await test('Mocked Gemini API evaluation uses latest Gemini 3.8/4 models and parses [[mod:...]] tags', async () => {
+  await test('Mocked Gemini API evaluation uses latest Gemini 3.8/4 models (incl. Hydrogen & Argon) and parses [[mod:...]] tags', async () => {
     assert.ok(GEMINI_TEXT_MODELS.some((m) => m.id === 'gemini-3.8-flash'));
     assert.ok(GEMINI_TEXT_MODELS.some((m) => m.id === 'gemini-4-carbon'));
+    assert.ok(GEMINI_TEXT_MODELS.some((m) => m.id === 'gemini-4-hydrogen'));
+    assert.ok(GEMINI_TEXT_MODELS.some((m) => m.id === 'gemini-4-argon'));
     assert.ok(GEMINI_IMAGE_MODELS.some((m) => m.id === 'gemini-3.1-flash-image'));
     assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-neon-high'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-hydrogen-high'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-hydrogen-xhigh'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-hydrogen-medium'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-hydrogen-low'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-argon-high'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-argon-medium'));
+    assert.ok(AGY_MODELS.some((m) => m.id === 'gemini-4-argon-low'));
 
     const mockFetch = async (url, init) => {
       assert.ok(url.includes('gemini-3.8-flash:generateContent'));

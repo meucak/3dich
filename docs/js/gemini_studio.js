@@ -16,13 +16,15 @@ export const AI_PROVIDERS = [
 
 // Latest 2026 Active Gemini Text/Multimodal Models (plus auto-discovery via ListModels!)
 export const GEMINI_TEXT_MODELS = [
-  { id: 'gemini-3.8-flash',    label: 'Gemini 3.8 Flash (2026 Default • Fast + Vision)' },
-  { id: 'gemini-4-carbon',     label: 'Gemini 4 Carbon (Frontier Engineering)' },
-  { id: 'gemini-4-argon',      label: 'Gemini 4 Argon (Balanced Frontier)' },
+  { id: 'gemini-3.8-flash',      label: 'Gemini 3.8 Flash (2026 Default • Fast + Vision)' },
+  { id: 'gemini-4-neon',         label: 'Gemini 4 Neon (Flagship Frontier)' },
+  { id: 'gemini-4-hydrogen',     label: 'Gemini 4 Hydrogen (Deep Frontier Reasoning)' },
+  { id: 'gemini-4-argon',        label: 'Gemini 4 Argon (Balanced Frontier)' },
+  { id: 'gemini-4-carbon',       label: 'Gemini 4 Carbon (Frontier Engineering)' },
   { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (Ultra Fast)' },
-  { id: 'gemini-3-pro-preview',label: 'Gemini 3 Pro Preview (Deep Reasoning)' },
-  { id: 'gemini-2.5-flash',    label: 'Gemini 2.5 Flash (Compat / Auto-Route)' },
-  { id: 'gemini-2.5-pro',      label: 'Gemini 2.5 Pro (Compat / Auto-Route)' },
+  { id: 'gemini-3-pro-preview',  label: 'Gemini 3 Pro Preview (Deep Reasoning)' },
+  { id: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash (Compat / Auto-Route)' },
+  { id: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro (Compat / Auto-Route)' },
 ];
 
 // Latest 2026 Active Gemini & Imagen 4 Image Generation Models
@@ -36,13 +38,29 @@ export const GEMINI_IMAGE_MODELS = [
 
 // Verified Antigravity CLI Models (`agy models` on Kasa & Toshi)
 export const AGY_MODELS = [
-  { id: 'gemini-4-neon-high',   label: 'Gemini 4 Neon (High)' },
-  { id: 'gemini-4-neon-xhigh',  label: 'Gemini 4 Neon (XHigh)' },
-  { id: 'gemini-4-carbon-high', label: 'Gemini 4 Carbon (High)' },
-  { id: 'gemini-3.8-flash-high',label: 'Gemini 3.8 Flash (High)' },
-  { id: 'claude-opus-5-5-high', label: 'Claude Opus 5.5 (High)' },
-  { id: 'claude-sonnet-5-5-high', label: 'Claude Sonnet 5.5 (High)' },
-  { id: 'gpt-oss-120b-medium',  label: 'GPT-OSS 120B (Medium)' },
+  { id: 'gemini-4-neon-xhigh',           label: 'Gemini 4 Neon (XHigh)' },
+  { id: 'gemini-4-neon-high',            label: 'Gemini 4 Neon (High)' },
+  { id: 'gemini-4-neon-medium',          label: 'Gemini 4 Neon (Medium)' },
+  { id: 'gemini-4-neon-low',             label: 'Gemini 4 Neon (Low)' },
+  { id: 'gemini-4-hydrogen-xhigh',       label: 'Gemini 4 Hydrogen (XHigh)' },
+  { id: 'gemini-4-hydrogen-high',        label: 'Gemini 4 Hydrogen (High)' },
+  { id: 'gemini-4-hydrogen-medium',      label: 'Gemini 4 Hydrogen (Medium)' },
+  { id: 'gemini-4-hydrogen-low',         label: 'Gemini 4 Hydrogen (Low)' },
+  { id: 'gemini-4-argon-high',           label: 'Gemini 4 Argon (High)' },
+  { id: 'gemini-4-argon-medium',         label: 'Gemini 4 Argon (Medium)' },
+  { id: 'gemini-4-argon-low',            label: 'Gemini 4 Argon (Low)' },
+  { id: 'gemini-4-carbon-high',          label: 'Gemini 4 Carbon (High)' },
+  { id: 'gemini-4-carbon-medium',        label: 'Gemini 4 Carbon (Medium)' },
+  { id: 'gemini-4-carbon-low',           label: 'Gemini 4 Carbon (Low)' },
+  { id: 'gemini-pro-orchestrator-neon',  label: 'Orchestrator (Neon)' },
+  { id: 'gemini-pro-orchestrator-argon', label: 'Orchestrator (Argon)' },
+  { id: 'gemini-pro-orchestrator',       label: 'Orchestrator (Carbon)' },
+  { id: 'gemini-3.8-flash-high',         label: 'Gemini 3.8 Flash (High)' },
+  { id: 'gemini-3.8-flash-medium',       label: 'Gemini 3.8 Flash (Medium)' },
+  { id: 'gemini-3.8-flash-low',          label: 'Gemini 3.8 Flash (Low)' },
+  { id: 'claude-opus-5-5-high',          label: 'Claude Opus 5.5 (High)' },
+  { id: 'claude-sonnet-5-5-high',        label: 'Claude Sonnet 5.5 (High)' },
+  { id: 'gpt-oss-120b-medium',           label: 'GPT-OSS 120B (Medium)' },
 ];
 
 export const RENDER_STYLES = [
@@ -177,7 +195,7 @@ export async function fetchLiveGeminiModels(apiKey, fetchFn = fetch) {
   // Sort newest generation first (gemini-4 -> gemini-3 -> gemini-2.5)
   const rank = (s) => {
     const m = /gemini-(\d+(?:\.\d+)?)/i.exec(s);
-    if (m) return parseFloat(m[1]) * 10 + (/pro|carbon/i.test(s) ? 2 : 1);
+    if (m) return parseFloat(m[1]) * 10 + (/pro|carbon|neon|hydrogen|argon/i.test(s) ? 2 : 1);
     if (/imagen-4/i.test(s)) return 45;
     return 0;
   };

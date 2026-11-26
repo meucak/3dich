@@ -1,5 +1,5 @@
 // 3dich — Lightweight Offline-First Service Worker (PWA)
-const CACHE_NAME = '3dich-v1.1.0';
+const CACHE_NAME = '3dich-v1.1.1';
 const ASSETS = [
   './',
   './index.html',

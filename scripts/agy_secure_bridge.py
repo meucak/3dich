@@ -12,9 +12,10 @@ Cybersecurity Architecture (Defense-in-Depth):
      rate limit (20 req / 5 min), strict max concurrent subprocess semaphore (2),
      8 MB request cap, 32 KB prompt cap, 110s execution timeout.
   4. Strict CORS Allowlist (NO `*`!): Rejects untrusted browser Origins with 403.
-  5. Sandboxed Least-Privilege Subprocess: Runs `agy --print --disable-slash-commands
-     --sandbox` inside an isolated empty 0700 scratch dir with `shell=False` and
-     strict model regex allowlist. Never grants auto-edit or workspace access.
+  5. Sandboxed Least-Privilege Subprocess: Runs `agy --disable-slash-commands
+     --sandbox --model <model> --print=<prompt>` inside an isolated empty 0700 scratch
+     dir with `shell=False` and strict model regex allowlist. Never grants auto-edit or
+     workspace access.
 """
 
 from __future__ import annotations
@@ -223,12 +224,11 @@ def run_sandboxed_agy(
 
         cmd = [
             agy_bin,
-            "--print",
             "--disable-slash-commands",
             "--sandbox",
             "--model",
             safe_model,
-            full_prompt,
+            f"--print={full_prompt}",
         ]
         proc = subprocess.run(
             cmd,
